@@ -1,5 +1,6 @@
 /**
- * Stage 1 defects D1 and D8 (migration 0034). One transaction, ROLLED BACK.
+ * Stage 1 defects D1 and D8 (migration 0034) and the sell-out residue
+ * (migration 0037). One transaction, ROLLED BACK.
  * PGlite only.
  *
  * D1: voiding an opening / stock increase after the average moved keeps
@@ -114,6 +115,29 @@ async function main() {
     check("D1 decrease: void puts back 4 units at the 400 removed (stock 20 / 3,000), not at the line's zero cost", n(sC.q) === 20 && n(sC.v) === 3000);
     check("D1 decrease: GL 1150 equals the stock subledger", await aligned(), `${await gl("1150")} vs ${await stockTotal()}`);
 
+    // ------------------------------------------------------------ 0037: a sell-out takes the exact value left
+    // 7 units worth 10.00 (average 1.4286) sold one at a time: six sales take
+    // round(1.4286) = 1.43 each (8.58), so the last unit must take the 1.42 left,
+    // not another 1.43 that would leave GL 1150 a cent away from the stock.
+    const pS = await product("VAL-S");
+    await opening(pS, 7, 1.4286);            // round(7 * 1.4286) = 10.00
+    const walkin = await one(db, "select id from customers where company_id=$1 and code='WALK-IN'", [co]);
+    const cashPa = await one(db, "select id from payment_accounts where company_id=$1 and is_active and account_type='cash' limit 1", [co]);
+    const sold: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const s = await one(db, "insert into sales(company_id, branch_id, document_date, customer_id, created_by, grand_total) values ($1,$2,$3,$4,$5,2) returning id", [co, hq, today, walkin, owner]);
+      await db.query("insert into sale_lines(sale_id, product_id, quantity, unit_price, tax_rate, track_inventory, line_no) values ($1,$2,1,2,0,true,1)", [s, pS]);
+      await db.query("insert into sale_payments(sale_id, payment_account_id, amount) values ($1,$2,2)", [s, cashPa]);
+      await db.query("select post_sale($1,$2,$3)", [s, owner, key()]);
+      sold.push(s);
+    }
+    const cogs = n(await one(db, "select sum(cogs_total) from sales where id = any($1::uuid[])", [sold]));
+    const lastCogs = n(await one(db, "select cogs_total from sales where id=$1", [sold[6]]));
+    const sS = await stock(pS);
+    check("0037: selling out leaves no stock and no value", n(sS.q) === 0 && n(sS.v) === 0);
+    check("0037: cost of sales equals exactly the 10.00 put into stock (last unit takes the 1.42 left)", cogs === 10 && lastCogs === 1.42, `cogs ${cogs}, last ${lastCogs}`);
+    check("0037: GL 1150 equals the stock subledger after the sell-out", await aligned(), `${await gl("1150")} vs ${await stockTotal()}`);
+
     // ------------------------------------------------------------ controls
     check("D1: a void of a void is refused", await (async () => {
       await db.query("savepoint s");
@@ -130,7 +154,7 @@ async function main() {
     await db.query("rollback");
     await db.end();
   }
-  console.log(`\n${passed} valuation-fix (D1 / D8) checks passed. Rolling back.`);
+  console.log(`\n${passed} valuation-fix (D1 / D8 / 0037) checks passed. Rolling back.`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
