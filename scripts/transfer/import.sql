@@ -247,12 +247,13 @@ begin
   values (s.id, (select company from legacy.ctx), b, s.doc_date, (select walkin from legacy.ctx),
           nullif(trim(coalesce(s.walkin_name, s.customer_ref, '')), ''), legacy.uid(s.created_by),
           'Old system ' || s.doc_no, legacy.uid(s.created_by), s.created_at, s.total_amount);
-  insert into public.sale_lines(sale_id, product_id, quantity, unit_price, original_price, discount, tax_code_id, tax_rate,
-      tax_inclusive, track_inventory, line_no)
-  select s.id, l.product_id, l.quantity, l.unit_price, l.unit_price, coalesce(l.discount_abs, 0), legacy.tax(l.vat_rate),
-         round(coalesce(l.vat_rate, 0) * 100, 4), upper(coalesce(l.vat_mode, 'INCL')) = 'INCL', p.track_inventory,
+  insert into public.sale_lines(sale_id, product_id, description, quantity, unit_price, original_price, discount, tax_code_id,
+      tax_rate, tax_type, tax_name, tax_inclusive, track_inventory, line_no)
+  select s.id, l.product_id, p.name, l.quantity, l.unit_price, l.unit_price, coalesce(l.discount_abs, 0), t.id,
+         round(coalesce(l.vat_rate, 0) * 100, 4), t.tax_type, t.name, upper(coalesce(l.vat_mode, 'INCL')) = 'INCL', p.track_inventory,
          row_number() over (order by l.created_at, l.id)
     from legacy.fin_sale_lines l join public.products p on p.id = l.product_id
+    join public.tax_codes t on t.id = legacy.tax(l.vat_rate)
    where l.sale_id = s.id;
   insert into public.sale_payments(sale_id, payment_account_id, amount, payment_date, created_at)
   select s.id, legacy.pa(b, sp.payment_method), sp.amount, s.doc_date, sp.created_at
@@ -282,12 +283,13 @@ begin
       internal_reference, supplier_id, notes, is_credit, due_date, created_by, created_at)
   values (p.id, (select company from legacy.ctx), b, p.doc_date, p.doc_date, inv, p.doc_no, p.supplier_id,
           'Old system ' || p.doc_no, credit, case when credit then p.doc_date + 30 end, legacy.uid(p.created_by), p.created_at);
-  insert into public.purchase_lines(purchase_id, product_id, quantity, unit_cost, discount, tax_code_id, tax_rate, tax_inclusive,
-      is_recoverable, track_inventory, line_no)
-  select p.id, l.product_id, l.quantity, l.unit_cost, 0, legacy.tax(l.vat_rate), round(coalesce(l.vat_rate, 0) * 100, 4),
-         upper(coalesce(l.vat_mode, 'INCL')) = 'INCL', coalesce(l.vat_rate, 0) > 0, pr.track_inventory,
+  insert into public.purchase_lines(purchase_id, product_id, description, quantity, unit_cost, discount, tax_code_id, tax_rate,
+      tax_type, tax_name, tax_inclusive, is_recoverable, track_inventory, line_no)
+  select p.id, l.product_id, pr.name, l.quantity, l.unit_cost, 0, t.id, round(coalesce(l.vat_rate, 0) * 100, 4),
+         t.tax_type, t.name, upper(coalesce(l.vat_mode, 'INCL')) = 'INCL', coalesce(l.vat_rate, 0) > 0, pr.track_inventory,
          row_number() over (order by l.created_at, l.id)
     from legacy.fin_purchase_lines l join public.products pr on pr.id = l.product_id
+    join public.tax_codes t on t.id = legacy.tax(l.vat_rate)
    where l.purchase_id = p.id;
   insert into public.purchase_payments(purchase_id, payment_account_id, amount, payment_date, created_at)
   select p.id, legacy.pa(b, pp.payment_method), pp.amount, p.doc_date, pp.created_at
@@ -306,11 +308,12 @@ begin
   select * into e from legacy.ops_petty_cash where id = p_id;
   b := legacy.br(e.branch_id);
   insert into public.expenses(id, company_id, branch_id, document_date, expense_category_id, reference, description,
-      tax_code_id, tax_rate, tax_inclusive, is_recoverable, net_total, tax_total, grand_total, created_by, created_at)
+      tax_code_id, tax_name, tax_rate, tax_inclusive, is_recoverable, net_total, tax_total, grand_total, created_by, created_at)
   values (e.id, (select company from legacy.ctx), b, e.doc_date, e.category_id,
           e.doc_no || coalesce(' / ' || nullif(trim(e.reference_no), ''), ''),
           nullif(concat_ws(' - ', nullif(trim(e.payee), ''), nullif(trim(e.description), '')), ''),
-          (select zero from legacy.ctx), 0, false, false, e.amount, 0, e.amount, legacy.uid(e.created_by), e.created_at);
+          (select zero from legacy.ctx), (select name from public.tax_codes where id = (select zero from legacy.ctx)),
+          0, false, false, e.amount, 0, e.amount, legacy.uid(e.created_by), e.created_at);
   insert into public.expense_payments(expense_id, payment_account_id, amount, payment_date, created_at)
   values (e.id, legacy.pa(b, e.payment_method_code), e.amount, e.doc_date, e.created_at);
   perform public.post_expense(e.id, legacy.actor(e.posted_by), null);
