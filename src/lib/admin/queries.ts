@@ -68,6 +68,8 @@ export interface ListParams {
   status?: "active" | "inactive" | "all";
   page?: number;
   pageSize?: number;
+  /** Exact-match filters on "ref" columns (column key -> id). */
+  filters?: Record<string, string>;
 }
 
 export interface ListResult {
@@ -96,6 +98,10 @@ export async function loadResourceRows(
   if (!NO_ACTIVE_TOGGLE.has(config.key)) {
     if (params.status === "active") query = query.eq("is_active", true);
     else if (params.status === "inactive") query = query.eq("is_active", false);
+  }
+
+  for (const [col, value] of Object.entries(params.filters ?? {})) {
+    if (config.columns.some((c) => c.key === col && c.type === "ref")) query = query.eq(col, value);
   }
 
   if (params.q && params.q.trim()) {

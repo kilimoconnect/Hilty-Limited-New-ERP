@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Button } from "@/components/ui/button";
 import { ListToolbar } from "@/components/common/list-toolbar";
-import { formatMoney, formatQuantity, formatDateTime } from "@/lib/format";
+import { formatMoney, formatQuantity, formatDateTime, localDayStart, localDayEnd } from "@/lib/format";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 
 export const metadata: Metadata = { title: "Kardex" };
-const PAGE = 40;
 
 const TYPE_LABEL: Record<string, string> = {
   opening: "Opening", sale: "Sale", sale_void: "Sale void", sales_return: "Return",
@@ -36,8 +33,10 @@ export default async function KardexPage(props: { searchParams: SP }) {
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const branch = typeof sp.branch === "string" ? sp.branch : "";
   const type = typeof sp.type === "string" ? sp.type : "";
-  const page = typeof sp.page === "string" ? Math.max(1, parseInt(sp.page, 10) || 1) : 1;
-  const from = (page - 1) * PAGE, to = from + PAGE - 1;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
+  const from = (page - 1) * size, to = from + size - 1;
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
 
   // Commas and brackets would break the search filter syntax.
   const term = q.replace(/[,()]/g, " ").trim();
@@ -50,6 +49,8 @@ export default async function KardexPage(props: { searchParams: SP }) {
   if (branch) query = query.eq("branch_id", branch);
   else if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (type) query = query.eq("movement_type", type);
+  if (from_) query = query.gte("created_at", localDayStart(from_));
+  if (to_) query = query.lte("created_at", localDayEnd(to_));
   if (term) query = query.or(`sku.ilike.%${term}%,name.ilike.%${term}%`, { referencedTable: "products" });
 
   const { data, count } = await query;
@@ -60,7 +61,6 @@ export default async function KardexPage(props: { searchParams: SP }) {
     branch: { code: string } | null; product: { sku: string; name: string } | null;
   }>;
   const total = count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE));
 
   return (
     <div>
@@ -74,6 +74,7 @@ export default async function KardexPage(props: { searchParams: SP }) {
           { name: "type", placeholder: "All types", value: type, width: "w-[160px]",
             options: Object.entries(TYPE_LABEL).map(([v, l]) => ({ value: v, label: l })) },
         ]}
+        dates={{ from: from_, to: to_ }}
       />
 
       {rows.length === 0 ? (
@@ -118,20 +119,7 @@ export default async function KardexPage(props: { searchParams: SP }) {
         </div>
       )}
 
-      {total > PAGE && (
-        <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-          <span>{from + 1}–{Math.min(page * PAGE, total)} of {total}</span>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" disabled={page <= 1}>
-              <Link href={`/inventory/kardex?${new URLSearchParams({ ...(q && { q }), ...(branch && { branch }), ...(type && { type }), page: String(page - 1) })}`}><ChevronLeft className="h-4 w-4" /> Prev</Link>
-            </Button>
-            <span>Page {page} of {totalPages}</span>
-            <Button asChild variant="outline" size="sm" disabled={page >= totalPages}>
-              <Link href={`/inventory/kardex?${new URLSearchParams({ ...(q && { q }), ...(branch && { branch }), ...(type && { type }), page: String(page + 1) })}`}>Next <ChevronRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pager basePath="/inventory/kardex" params={{ q, branch, type, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

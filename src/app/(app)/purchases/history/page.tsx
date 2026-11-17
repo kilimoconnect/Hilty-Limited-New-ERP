@@ -4,7 +4,7 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
 import { postPurchase, deletePurchaseDraft, voidPurchase } from "@/lib/purchases/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,8 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
 
   const sp = await props.searchParams;
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
   const pay = typeof sp.pay === "string" ? sp.pay : "";
@@ -45,12 +47,14 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
   let query = admin.from("purchases")
     .select("id, document_number, supplier_invoice_number, internal_reference, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, supplier:suppliers(name), branch:branches(code)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+    .range((page - 1) * size, page * size - 1);
   if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (status) query = query.eq("document_status", status);
   if (pay) query = query.eq("payment_status", pay);
   if (branch) query = query.eq("branch_id", branch);
   if (supplier) query = query.eq("supplier_id", supplier);
+  if (from_) query = query.gte("document_date", from_);
+  if (to_) query = query.lte("document_date", to_);
   if (term) query = query.or([`document_number.ilike.%${term}%`, `supplier_invoice_number.ilike.%${term}%`, `internal_reference.ilike.%${term}%`,
     ...(nameHits.length ? [`supplier_id.in.(${nameHits.join(",")})`] : [])].join(","));
 
@@ -72,7 +76,8 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
           { name: "supplier", placeholder: "All suppliers", value: supplier, width: "w-[200px]", options: (suppliers ?? []).map((x) => ({ value: x.id, label: x.name })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
           { name: "pay", placeholder: "All payments", value: pay, width: "w-[160px]", options: [{ value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partial" }, { value: "paid", label: "Paid" }, { value: "partially_refunded", label: "Part. refunded" }, { value: "refunded", label: "Refunded" }] },
-        ]} />
+        ]}
+        dates={{ from: from_, to: to_ }} />
 
       {rows.length === 0 ? <EmptyState title="No purchases found" /> : (
         <div className="rounded-lg border border-border bg-card">
@@ -112,7 +117,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
-      <Pager basePath="/purchases/history" params={{ q, status, pay, branch, supplier }} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/purchases/history" params={{ q, status, pay, branch, supplier, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

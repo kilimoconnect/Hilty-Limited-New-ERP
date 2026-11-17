@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf, str } from "@/components/reports/pager";
+import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Branch Landed Cost" };
@@ -21,11 +21,12 @@ export default async function BranchLandedCostPage(props: { searchParams: Promis
   const sp = await props.searchParams;
   const branch = str(sp, "branch"), pack = str(sp, "pack") || "50", q = str(sp, "q").toLowerCase();
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const scope = ctx.user.isOwner ? null : ctx.user.branchIds;
   const all = (await branchLandedCost(ctx.companyId, scope))
     .filter((r) => (!branch || r.branchId === branch) && (!q || `${r.sku} ${r.name}`.toLowerCase().includes(q)))
     .sort((a, b) => a.branch.localeCompare(b.branch) || a.name.localeCompare(b.name));
-  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = all.slice((page - 1) * size, page * size);
   const packKg = Number(pack);
   const branches = ctx.branches.filter((b) => !scope || scope.includes(b.id));
   return (
@@ -65,7 +66,7 @@ export default async function BranchLandedCostPage(props: { searchParams: Promis
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/branch-landed-cost" params={{ branch, pack, q }} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath="/reports/branch-landed-cost" params={{ branch, pack, q }} page={page} pageSize={size} total={all.length} />
     </div>
   );
 }

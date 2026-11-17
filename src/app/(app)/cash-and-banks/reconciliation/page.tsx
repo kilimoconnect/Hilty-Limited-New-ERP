@@ -3,7 +3,8 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { ListToolbar } from "@/components/common/list-toolbar";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,14 +16,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const metadata: Metadata = { title: "Bank Reconciliation" };
 
 export default async function ReconciliationListPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   await requirePermissionPage("reconciliation.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
-  const { data: rows, count } = await admin.from("bank_reconciliations")
+  const status = typeof sp.status === "string" ? sp.status : "";
+  const account = typeof sp.account === "string" ? sp.account : "";
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
+  const { data: accountOptions } = await admin.from("payment_accounts").select("id, name").eq("company_id", ctx.companyId).order("name");
+  let query = admin.from("bank_reconciliations")
     .select("id, statement_start, statement_end, statement_closing, status, account:payment_accounts(name)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).order("id", { ascending: false })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+      .range((page - 1) * size, page * size - 1);
+  if (status) query = query.eq("status", status);
+  if (account) query = query.eq("payment_account_id", account);
+  if (from_) query = query.gte("statement_end", from_);
+  if (to_) query = query.lte("statement_end", to_);
+  const { data: rows, count } = await query;
   const list = (rows ?? []) as unknown as Array<{ id: string; statement_start: string; statement_end: string; statement_closing: number; status: string; account: { name: string } | null }>;
   const variant = (s: string) => s === "finalized" ? "success" : s === "reopened" ? "warning" : "muted";
 
@@ -30,6 +42,12 @@ export default async function ReconciliationListPage(props: { searchParams: Prom
     <div>
       <PageHeader title="Bank & Mobile-Money Reconciliation" description="Match statement lines to posted ERP entries."
         actions={can(ctx.user, "reconciliation.create") ? <Button asChild><Link href="/cash-and-banks/reconciliation/new">New Reconciliation</Link></Button> : null} />
+      <ListToolbar searchPlaceholder="Search..."
+        selects={[
+          { name: "account", placeholder: "All accounts", value: account, width: "w-[190px]", options: (accountOptions ?? []).map((o) => ({ value: o.id, label: o.name })) },
+          { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "finalized", label: "Finalized" }] },
+        ]}
+        dates={{ from: from_, to: to_ }} />
       {list.length === 0 ? <EmptyState title="No reconciliations yet" /> : (
         <div className="rounded-lg border border-border bg-card">
           <Table>
@@ -48,7 +66,7 @@ export default async function ReconciliationListPage(props: { searchParams: Prom
           </Table>
         </div>
       )}
-      <Pager basePath="/cash-and-banks/reconciliation" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
+      <Pager basePath="/cash-and-banks/reconciliation" params={{ status, account, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

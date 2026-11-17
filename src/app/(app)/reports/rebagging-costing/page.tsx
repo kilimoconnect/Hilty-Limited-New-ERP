@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PeriodFilter, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf } from "@/components/reports/pager";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Rebagging Costing" };
@@ -20,8 +20,9 @@ export default async function RebaggingCostingPage(props: { searchParams: Promis
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const all = await rebagCosting(ctx.companyId, ctx.user.isOwner ? null : ctx.user.branchIds, start, end);
-  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = all.slice((page - 1) * size, page * size);
   const sum = (f: (r: (typeof all)[number]) => number) => all.reduce((a, r) => a + f(r), 0);
   const csv = all.flatMap((r) => r.outputs.map((o) => [r.number, r.date ?? "", r.branch, r.bulk, r.issuedKg, r.packedKg, r.returnedKg, r.normalLossKg, r.abnormalLossKg,
     o.sku, o.name, o.bags, o.netKg, o.value, o.perBag, o.perKg, r.packagingValue, r.conversionValue, r.abnormalValue]));
@@ -60,7 +61,7 @@ export default async function RebaggingCostingPage(props: { searchParams: Promis
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/rebagging-costing" params={{ start, end }} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath="/reports/rebagging-costing" params={{ start, end }} page={page} pageSize={size} total={all.length} />
     </div>
   );
 }

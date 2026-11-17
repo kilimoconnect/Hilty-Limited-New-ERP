@@ -24,6 +24,7 @@ import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PAGE_SIZES } from "@/components/reports/pager";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -68,6 +69,7 @@ export function ResourceManager({
   pageSize,
   options,
   query,
+  filters = {},
 }: {
   config: ResourceConfig;
   rows: Row[];
@@ -76,6 +78,8 @@ export function ResourceManager({
   pageSize: number;
   options: OptionMap;
   query: { q: string; status: "active" | "inactive" | "all" };
+  /** Current values of the per-column filters (?f_<column>=<id>). */
+  filters?: Record<string, string>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -90,11 +94,13 @@ export function ResourceManager({
 
   const hasActive = !NO_ACTIVE_TOGGLE.has(config.key);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  // Columns that point at another list (category, brand, unit...) get a filter.
+  const refFilters = config.columns.filter((c) => c.type === "ref" && c.refKey && (options[c.refKey]?.length ?? 0) > 0);
 
   function navigate(next: Record<string, string | number | undefined>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [k, v] of Object.entries(next)) {
-      if (v === undefined || v === "" || v === "all") params.delete(k);
+      if (v === undefined || v === "" || (v === "all" && k !== "status")) params.delete(k);
       else params.set(k, String(v));
     }
     startTransition(() => router.push(`${pathname}?${params.toString()}`));
@@ -167,7 +173,16 @@ export function ResourceManager({
           />
         </form>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {refFilters.map((col) => (
+            <Select key={col.key} value={filters[col.key] || "all"} onValueChange={(v) => navigate({ [`f_${col.key}`]: v, page: 1 })}>
+              <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder={`Any ${col.label.toLowerCase()}`} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any {col.label.toLowerCase()}</SelectItem>
+                {(options[col.refKey!] ?? []).map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ))}
           {hasActive && (
             <Select
               value={query.status}
@@ -264,13 +279,20 @@ export function ResourceManager({
       </div>
 
       {/* Pagination */}
-      {total > pageSize && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
           <span>
             {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
           </span>
-          <div className="flex items-center gap-2">
-            <Button
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs">Rows per page:</span>
+            <Select value={String(pageSize)} onValueChange={(v) => navigate({ size: v, page: 1 })}>
+              <SelectTrigger className="h-8 w-[90px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {totalPages > 1 && <><Button
               variant="outline"
               size="sm"
               disabled={page <= 1}
@@ -288,7 +310,7 @@ export function ResourceManager({
               onClick={() => navigate({ page: page + 1 })}
             >
               Next <ChevronRight className="h-4 w-4" />
-            </Button>
+            </Button></>}
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PeriodFilter, ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf, str } from "@/components/reports/pager";
+import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Shipment Costing" };
@@ -23,8 +23,9 @@ export default async function ShipmentCostingPage(props: { searchParams: Promise
   const { start, end } = resolvePeriod(sp);
   const status = str(sp, "costing");
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const all = await shipmentCosting(ctx.companyId, start, end, status);
-  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = all.slice((page - 1) * size, page * size);
   const tot = (k: keyof (typeof all)[number]) => all.reduce((a, r) => a + Number(r[k] ?? 0), 0);
   const money = (v: number | null) => (v == null ? "—" : formatMoney(v));
   return (
@@ -71,7 +72,7 @@ export default async function ShipmentCostingPage(props: { searchParams: Promise
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/shipment-costing" params={{ start, end, costing: status }} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath="/reports/shipment-costing" params={{ start, end, costing: status }} page={page} pageSize={size} total={all.length} />
       <p className="mt-2 text-xs text-muted-foreground">Estimated figures use planning rates and estimates (never posted); actual figures are posted values. Costing &quot;Provisional&quot; means accruals still await their invoices.</p>
     </div>
   );

@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PeriodFilter, ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf, str } from "@/components/reports/pager";
+import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
 import { formatMoney, formatQuantity } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Profitability" };
@@ -29,6 +29,7 @@ export default async function ProfitabilityPage(props: { searchParams: Promise<S
   const { start, end } = resolvePeriod(sp);
   const dim = str(sp, "by") || "item";
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const admin = createAdminClient();
   const scope = ctx.user.isOwner ? null : new Set(ctx.user.branchIds);
   const [{ data: products }, { data: branches }] = await Promise.all([
@@ -72,7 +73,7 @@ export default async function ProfitabilityPage(props: { searchParams: Promise<S
     const net = r2(r.revenue - r.returnsRev), cost = r2(r.cogs - r.returnsCogs + r.late);
     return { ...r, net, cost, gp: r2(net - cost), gm: net ? r2((net - cost) / net * 100) : 0 };
   }).sort((a, b) => b.net - a.net);
-  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = all.slice((page - 1) * size, page * size);
   const tot = all.reduce((a, r) => ({ net: a.net + r.net, cost: a.cost + r.cost, late: a.late + r.late }), { net: 0, cost: 0, late: 0 });
   return (
     <div>
@@ -111,7 +112,7 @@ export default async function ProfitabilityPage(props: { searchParams: Promise<S
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/profitability" params={{ start, end, by: dim }} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath="/reports/profitability" params={{ start, end, by: dim }} page={page} pageSize={size} total={all.length} />
       <p className="mt-2 text-xs text-muted-foreground">{note}</p>
     </div>
   );

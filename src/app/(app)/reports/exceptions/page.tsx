@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf, str } from "@/components/reports/pager";
+import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
 import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Costing Exceptions" };
@@ -22,11 +22,12 @@ export default async function ExceptionsPage(props: { searchParams: Promise<SP> 
   const sp = await props.searchParams;
   const kind = str(sp, "kind");
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" }).format(new Date());
   const everything = await exceptions(createAdminClient(), ctx.companyId, ctx.user.isOwner ? null : ctx.user.branchIds, today);
   const kinds = Array.from(new Set(everything.map((e) => e.kind))).sort();
   const all = everything.filter((e) => !kind || e.kind === kind).sort((a, b) => (a.severity === b.severity ? a.kind.localeCompare(b.kind) : a.severity === "high" ? -1 : 1));
-  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = all.slice((page - 1) * size, page * size);
   return (
     <div>
       <PageHeader title="Costing Exceptions" description="Open items needing attention: unfinalised costs, unallocated charges, unresolved losses, missing documents, overdue arrivals, unmatched accruals (older than 30 days) and stock / GL differences. Current position."
@@ -56,7 +57,7 @@ export default async function ExceptionsPage(props: { searchParams: Promise<SP> 
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/exceptions" params={{ kind }} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath="/reports/exceptions" params={{ kind }} page={page} pageSize={size} total={all.length} />
     </div>
   );
 }

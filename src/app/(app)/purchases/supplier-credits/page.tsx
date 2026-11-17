@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
+import { ListToolbar } from "@/components/common/list-toolbar";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -13,14 +14,25 @@ import { RefundButton } from "./refund-button";
 export const metadata: Metadata = { title: "Supplier Credits" };
 
 export default async function SupplierCreditsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   await requirePermissionPage("purchases.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
-  const [{ data: credits, count }, { data: accounts }] = await Promise.all([
-    admin.from("supplier_credits").select("id, amount, remaining, fc_remaining, currency_code, credit_date, status, supplier:suppliers(name), return:purchase_returns(document_number), refunds:supplier_credit_refunds(amount, refund_date, reference)", { count: "exact" })
+  const supplier = typeof sp.supplier === "string" ? sp.supplier : "";
+  const status = typeof sp.status === "string" ? sp.status : "";
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
+  const { data: suppliers } = await admin.from("suppliers").select("id, name").eq("company_id", ctx.companyId).order("name");
+  let creditQuery = admin.from("supplier_credits").select("id, amount, remaining, fc_remaining, currency_code, credit_date, status, supplier:suppliers(name), return:purchase_returns(document_number), refunds:supplier_credit_refunds(amount, refund_date, reference)", { count: "exact" })
       .eq("company_id", ctx.companyId).order("credit_date", { ascending: false }).order("id", { ascending: false })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
+      .range((page - 1) * size, page * size - 1);
+  if (supplier) creditQuery = creditQuery.eq("supplier_id", supplier);
+  if (status) creditQuery = creditQuery.eq("status", status);
+  if (from_) creditQuery = creditQuery.gte("credit_date", from_);
+  if (to_) creditQuery = creditQuery.lte("credit_date", to_);
+  const [{ data: credits, count }, { data: accounts }] = await Promise.all([
+    creditQuery,
     admin.from("payment_accounts").select("id, name").eq("company_id", ctx.companyId).eq("is_active", true).order("name"),
   ]);
   type C = { id: string; amount: number; remaining: number; fc_remaining: number; currency_code: string; credit_date: string; status: string;
@@ -30,6 +42,12 @@ export default async function SupplierCreditsPage(props: { searchParams: Promise
   return (
     <div>
       <PageHeader title="Supplier Credits" description="Credits from returns and supplier credit notes. Use them on later invoices (from the invoice) or record the supplier's cash refund here." />
+      <ListToolbar searchPlaceholder="Search..."
+        selects={[
+          { name: "supplier", placeholder: "All suppliers", value: supplier, width: "w-[200px]", options: (suppliers ?? []).map((x) => ({ value: x.id, label: x.name })) },
+          { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "open", label: "Open" }, { value: "used", label: "Used" }, { value: "voided", label: "Voided" }] },
+        ]}
+        dates={{ from: from_, to: to_ }} />
       {rows.length === 0 ? <EmptyState title="No supplier credits" /> : (
         <Card className="overflow-x-auto">
           <Table>
@@ -52,7 +70,7 @@ export default async function SupplierCreditsPage(props: { searchParams: Promise
           </Table>
         </Card>
       )}
-      <Pager basePath="/purchases/supplier-credits" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
+      <Pager basePath="/purchases/supplier-credits" params={{ supplier, status, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

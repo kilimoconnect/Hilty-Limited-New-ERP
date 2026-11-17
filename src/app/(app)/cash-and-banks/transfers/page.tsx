@@ -4,7 +4,8 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
+import { ListToolbar } from "@/components/common/list-toolbar";
 import { postTransfer, deleteTransferDraft, voidTransfer } from "@/lib/cash/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -18,23 +19,46 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const metadata: Metadata = { title: "Transfers" };
 
 export default async function TransfersPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   await requirePermissionPage("cash_transfers.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
   const canPost = can(ctx.user, "cash_transfers.post");
   const canOwner = can(ctx.user, "transactions.void");
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
+  const status = typeof sp.status === "string" ? sp.status : "";
+  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
+  const term = q.replace(/[,()]/g, " ").trim();
+  const account = typeof sp.account === "string" ? sp.account : "";
+  const { data: accounts } = await admin.from("payment_accounts").select("id, name").eq("company_id", ctx.companyId).order("name");
 
-  const { data: rows, count } = await admin.from("cash_transfers")
+  let query = admin.from("cash_transfers")
     .select("id, document_number, transfer_date, amount, fee, document_status, reference, source:payment_accounts!cash_transfers_source_account_id_fkey(name), dest:payment_accounts!cash_transfers_destination_account_id_fkey(name)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("transfer_date", { ascending: false }).order("created_at", { ascending: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+    .range((page - 1) * size, page * size - 1);
+  if (status) query = query.eq("document_status", status);
+  if (branch) query = query.eq("source_branch_id", branch);
+  if (account) query = query.or(`source_account_id.eq.${account},destination_account_id.eq.${account}`);
+  if (from_) query = query.gte("transfer_date", from_);
+  if (to_) query = query.lte("transfer_date", to_);
+  if (term) query = query.or(`document_number.ilike.%${term}%,reference.ilike.%${term}%,description.ilike.%${term}%`);
+  const { data: rows, count } = await query;
   const total = count ?? 0;
   const list = (rows ?? []) as unknown as Array<{ id: string; document_number: string | null; transfer_date: string; amount: number; fee: number; document_status: string; reference: string | null; source: { name: string } | null; dest: { name: string } | null }>;
 
   return (
     <div>
       <PageHeader title="Cash Transfers" actions={<Button asChild><Link href="/cash-and-banks/transfer">New Transfer</Link></Button>} />
+      <ListToolbar searchValue={q} searchPlaceholder="Search transfer no / reference..."
+        selects={[
+          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "account", placeholder: "All accounts", value: account, width: "w-[200px]", options: (accounts ?? []).map((a) => ({ value: a.id, label: a.name })) },
+          { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
+        ]}
+        dates={{ from: from_, to: to_ }} />
       {list.length === 0 ? <EmptyState title="No transfers yet" /> : (
         <div className="rounded-lg border border-border bg-card">
           <Table>
@@ -59,7 +83,7 @@ export default async function TransfersPage(props: { searchParams: Promise<Recor
           </Table>
         </div>
       )}
-      <Pager basePath="/cash-and-banks/transfers" params={{}} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/cash-and-banks/transfers" params={{ q, status, branch, account, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

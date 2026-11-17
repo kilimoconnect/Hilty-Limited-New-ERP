@@ -21,12 +21,15 @@ export function ListToolbar({
   searchValue = "",
   searchPlaceholder = "Search...",
   selects = [],
+  dates,
   children,
 }: {
   searchName?: string;
   searchValue?: string;
   searchPlaceholder?: string;
   selects?: ToolbarSelect[];
+  /** Optional date range filter, kept in ?from= and ?to= (YYYY-MM-DD). */
+  dates?: { from: string; to: string };
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -68,6 +71,15 @@ export function ListToolbar({
             </SelectContent>
           </Select>
         ))}
+        {dates && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Input type="date" aria-label="From date" value={dates.from} max={dates.to || undefined}
+              onChange={(e) => nav({ from: e.target.value })} className="h-9 w-[150px]" />
+            <span>to</span>
+            <Input type="date" aria-label="To date" value={dates.to} min={dates.from || undefined}
+              onChange={(e) => nav({ to: e.target.value })} className="h-9 w-[150px]" />
+          </div>
+        )}
       </div>
       {children && <div className="flex items-center gap-2">{children}</div>}
     </div>

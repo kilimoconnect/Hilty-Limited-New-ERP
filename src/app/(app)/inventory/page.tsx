@@ -3,7 +3,7 @@ import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { selectAll } from "@/lib/supabase/batch";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -28,8 +28,15 @@ export default async function InventoryPage(props: { searchParams: SP }) {
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const branch = typeof sp.branch === "string" ? sp.branch : "";
   const low = sp.low === "1";
+  const category = typeof sp.category === "string" ? sp.category : "";
+  const brand = typeof sp.brand === "string" ? sp.brand : "";
+  const [{ data: categories }, { data: brands }] = await Promise.all([
+    admin.from("product_categories").select("id, name").eq("company_id", ctx.companyId).order("name"),
+    admin.from("brands").select("id, name").eq("company_id", ctx.companyId).order("name"),
+  ]);
 
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   // Commas and brackets would break the search filter syntax.
   const term = q.replace(/[,()]/g, " ").trim();
 
@@ -48,6 +55,8 @@ export default async function InventoryPage(props: { searchParams: SP }) {
       .eq("company_id", ctx.companyId);
     if (branch) query = query.eq("branch_id", branch);
     else if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
+    if (category) query = query.eq("product.category_id", category);
+    if (brand) query = query.eq("product.brand_id", brand);
     if (term) query = query.or(`sku.ilike.%${term}%,name.ilike.%${term}%`, { referencedTable: "products" });
     return query.order("id");
   });
@@ -56,7 +65,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
   all.sort((x, y) => (x.product?.sku ?? "").localeCompare(y.product?.sku ?? "") || (x.branch?.code ?? "").localeCompare(y.branch?.code ?? ""));
   const total = all.length;
   const totalValue = all.reduce((s, r) => s + Number(r.stock_value), 0);
-  const list = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const list = all.slice((page - 1) * size, page * size);
 
   return (
     <div>
@@ -70,6 +79,10 @@ export default async function InventoryPage(props: { searchParams: SP }) {
         selects={[
           { name: "branch", placeholder: "All branches", value: branch, width: "w-[180px]",
             options: ctx.branches.map((b) => ({ value: b.id, label: `${b.name} (${b.code})` })) },
+          { name: "category", placeholder: "All categories", value: category, width: "w-[170px]",
+            options: (categories ?? []).map((c) => ({ value: c.id, label: c.name })) },
+          { name: "brand", placeholder: "All brands", value: brand, width: "w-[170px]",
+            options: (brands ?? []).map((b) => ({ value: b.id, label: b.name })) },
           { name: "low", placeholder: "All stock", value: low ? "1" : "",
             options: [{ value: "1", label: "Low stock only" }] },
         ]}
@@ -132,10 +145,10 @@ export default async function InventoryPage(props: { searchParams: SP }) {
 
       {showCost && total > 0 && (
         <p className="mt-3 text-sm text-muted-foreground">
-          Total stock value ({total} {total === 1 ? "row" : "rows"}{q || branch || low ? ", filtered" : ""}): <span className="font-semibold text-foreground tabular-nums">{formatMoney(totalValue)}</span>
+          Total stock value ({total} {total === 1 ? "row" : "rows"}{q || branch || category || brand || low ? ", filtered" : ""}): <span className="font-semibold text-foreground tabular-nums">{formatMoney(totalValue)}</span>
         </p>
       )}
-      <Pager basePath="/inventory" params={{ q, branch, low: low ? "1" : "" }} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/inventory" params={{ q, branch, category, brand, low: low ? "1" : "" }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

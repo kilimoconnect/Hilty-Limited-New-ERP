@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
 import { postOtherIncome, deleteOtherIncomeDraft, voidOtherIncome } from "@/lib/other-income/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -26,14 +26,26 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
   const canOwner = can(ctx.user, "transactions.void");
   const sp = await props.searchParams;
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const status = typeof sp.status === "string" ? sp.status : "";
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
+  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  const type = typeof sp.type === "string" ? sp.type : "";
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
+  const term = q.replace(/[,()]/g, " ").trim();
+  const { data: types } = await admin.from("other_income_types").select("id, name").eq("company_id", ctx.companyId).order("name");
 
   let query = admin.from("other_income_transactions")
     .select("id, document_number, document_date, net_total, tax_total, grand_total, received_from, document_status, income_type:other_income_types(name), branch:branches(code)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+    .range((page - 1) * size, page * size - 1);
   if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (status) query = query.eq("document_status", status);
+  if (branch) query = query.eq("branch_id", branch);
+  if (type) query = query.eq("income_type_id", type);
+  if (from_) query = query.gte("document_date", from_);
+  if (to_) query = query.lte("document_date", to_);
+  if (term) query = query.or(`document_number.ilike.%${term}%,received_from.ilike.%${term}%`);
   const { data: found, count } = await query;
   const total = count ?? 0;
   const rows = (found ?? []) as unknown as Array<{ id: string; document_number: string | null; document_date: string; net_total: number; tax_total: number; grand_total: number; received_from: string | null; document_status: string; income_type: { name: string } | null; branch: { code: string } | null }>;
@@ -41,7 +53,13 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
   return (
     <div>
       <PageHeader title="Other Income History" actions={<Button asChild><Link href="/other-income/new">New Income</Link></Button>} />
-      <ListToolbar searchPlaceholder="Search..." selects={[{ name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] }]} />
+      <ListToolbar searchValue={q} searchPlaceholder="Search income no / received from..."
+        selects={[
+          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "type", placeholder: "All income types", value: type, width: "w-[200px]", options: (types ?? []).map((t) => ({ value: t.id, label: t.name })) },
+          { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
+        ]}
+        dates={{ from: from_, to: to_ }} />
       {rows.length === 0 ? <EmptyState title="No income records found" /> : (
         <div className="rounded-lg border border-border bg-card">
           <Table>
@@ -68,7 +86,7 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
-      <Pager basePath="/other-income/history" params={{ status }} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/other-income/history" params={{ q, status, branch, type, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

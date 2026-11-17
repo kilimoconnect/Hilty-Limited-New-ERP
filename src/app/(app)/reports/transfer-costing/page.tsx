@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PeriodFilter, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf } from "@/components/reports/pager";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Transfer Costing" };
@@ -20,8 +20,9 @@ export default async function TransferCostingPage(props: { searchParams: Promise
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);
   const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const all = await transferCosting(ctx.companyId, ctx.user.isOwner ? null : ctx.user.branchIds, start, end);
-  const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = all.slice((page - 1) * size, page * size);
   const sum = (k: keyof (typeof all)[number]) => all.reduce((a, r) => a + Number(r[k] ?? 0), 0);
   return (
     <div>
@@ -64,7 +65,7 @@ export default async function TransferCostingPage(props: { searchParams: Promise
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/transfer-costing" params={{ start, end }} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath="/reports/transfer-costing" params={{ start, end }} page={page} pageSize={size} total={all.length} />
       <p className="mt-2 text-xs text-muted-foreground">Charges are split by kind from their category (loading / transport); &quot;offloading&quot; is identified from the charge description. Transfers dispatched before the transfer upgrade are not listed.</p>
     </div>
   );

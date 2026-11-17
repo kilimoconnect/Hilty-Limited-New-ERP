@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf } from "@/components/reports/pager";
 import { isFeatureEnabled } from "@/lib/features";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,7 +11,9 @@ import { RevaluationForm, type OpenBalance, type RevaluationRow, type TableRate 
 export const metadata: Metadata = { title: "FX Revaluation" };
 
 export default async function FxRevaluationPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   await requirePermissionPage("fx.revalue");
   const ctx = await getActiveContext();
   if (!(await isFeatureEnabled(ctx.companyId, "fx_settlement"))) {
@@ -26,7 +28,7 @@ export default async function FxRevaluationPage(props: { searchParams: Promise<R
     admin.from("exchange_rates").select("currency_code, rate_date, rate").eq("company_id", ctx.companyId).order("rate_date", { ascending: false }).limit(1000),
     admin.from("fx_revaluations").select("id, document_number, revaluation_date, status, total_loss, total_gain", { count: "exact" })
       .eq("company_id", ctx.companyId).order("revaluation_date", { ascending: false }).order("id", { ascending: false })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
+      .range((page - 1) * size, page * size - 1),
   ]);
   const balances: OpenBalance[] = [
     ...((payables ?? []) as Array<{ currency_code: string; fc_outstanding: number; outstanding: number }>)
@@ -43,7 +45,7 @@ export default async function FxRevaluationPage(props: { searchParams: Promise<R
         description="Period-end revaluation of open foreign-currency supplier invoices and credits at authorised closing rates." />
       <RevaluationForm balances={balances} tableRates={tableRates}
         history={((history ?? []) as RevaluationRow[]).map((h) => ({ ...h, total_loss: Number(h.total_loss), total_gain: Number(h.total_gain) }))} />
-      <Pager basePath="/accounting/fx-revaluation" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
+      <Pager basePath="/accounting/fx-revaluation" params={{}} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

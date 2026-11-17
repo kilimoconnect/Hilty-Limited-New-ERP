@@ -4,7 +4,7 @@ import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { selectAll } from "@/lib/supabase/batch";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,7 +26,9 @@ export default async function AccountLedgerPage(props: { params: Params; searchP
   await requirePermissionPage("cash_accounts.view_ledger");
   const ctx = await getActiveContext();
   const { id } = await props.params;
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   const admin = createAdminClient();
 
   const { data: pa } = await admin.from("payment_accounts").select("id, code, name, ledger_account_id, company_id").eq("id", id).maybeSingle();
@@ -44,7 +46,7 @@ export default async function AccountLedgerPage(props: { params: Params; searchP
     all.push({ ...r, running: Math.round((prev + Number(r.debit) - Number(r.credit)) * 100) / 100 });
   }
   const closing = all.length ? all[all.length - 1].running : 0;
-  const ledger = all.slice().reverse().slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const ledger = all.slice().reverse().slice((page - 1) * size, page * size);
 
   return (
     <div>
@@ -75,7 +77,7 @@ export default async function AccountLedgerPage(props: { params: Params; searchP
           </Table>
         </div>
       )}
-      <Pager basePath={`/cash-and-banks/accounts/${id}`} params={{}} page={page} pageSize={PAGE_SIZE} total={all.length} />
+      <Pager basePath={`/cash-and-banks/accounts/${id}`} params={{}} page={page} pageSize={size} total={all.length} />
     </div>
   );
 }

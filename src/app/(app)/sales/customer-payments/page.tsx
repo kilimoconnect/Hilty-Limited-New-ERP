@@ -3,7 +3,8 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
+import { ListToolbar } from "@/components/common/list-toolbar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,16 +18,33 @@ import { ReceiptActions } from "./receipt-actions";
 export const metadata: Metadata = { title: "Customer Payments" };
 
 export default async function CustomerPaymentsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   await requirePermissionPage("sales.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
   const canVoid = can(ctx.user, "transactions.void");
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
+  const status = typeof sp.status === "string" ? sp.status : "";
+  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
+  const term = q.replace(/[,()]/g, " ").trim();
+  const customer = typeof sp.customer === "string" ? sp.customer : "";
+  const { data: customers } = await admin.from("customers").select("id, name").eq("company_id", ctx.companyId).order("name");
 
-  const { data: rows, count } = await admin.from("customer_receipts")
+  let query = admin.from("customer_receipts")
     .select("id, document_number, document_date, amount, reference, document_status, customer:customers(name), branch:branches(code), account:payment_accounts(name)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+    .range((page - 1) * size, page * size - 1);
+  if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
+  if (status) query = query.eq("document_status", status);
+  if (branch) query = query.eq("branch_id", branch);
+  if (customer) query = query.eq("customer_id", customer);
+  if (from_) query = query.gte("document_date", from_);
+  if (to_) query = query.lte("document_date", to_);
+  if (term) query = query.or(`document_number.ilike.%${term}%,reference.ilike.%${term}%`);
+  const { data: rows, count } = await query;
   const total = count ?? 0;
   const list = (rows ?? []) as unknown as Array<{
     id: string; document_number: string | null; document_date: string; amount: number; reference: string | null;
@@ -40,6 +58,13 @@ export default async function CustomerPaymentsPage(props: { searchParams: Promis
         description="Receipts against outstanding invoices."
         actions={can(ctx.user, "sales.receive_payment") && <Button asChild><Link href="/sales/customer-payments/new">Receive Payment</Link></Button>}
       />
+      <ListToolbar searchValue={q} searchPlaceholder="Search receipt no / reference..."
+        selects={[
+          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "customer", placeholder: "All customers", value: customer, width: "w-[200px]", options: (customers ?? []).map((x) => ({ value: x.id, label: x.name })) },
+          { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
+        ]}
+        dates={{ from: from_, to: to_ }} />
       {list.length === 0 ? (
         <EmptyState title="No receipts yet" />
       ) : (
@@ -74,7 +99,7 @@ export default async function CustomerPaymentsPage(props: { searchParams: Promis
           </Table>
         </div>
       )}
-      <Pager basePath="/sales/customer-payments" params={{}} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/sales/customer-payments" params={{ q, status, branch, customer, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

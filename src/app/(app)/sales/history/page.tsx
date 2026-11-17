@@ -4,7 +4,7 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,9 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
   const pay = typeof sp.pay === "string" ? sp.pay : "";
   const branch = typeof sp.branch === "string" ? sp.branch : "";
   const page = pageOf(sp);
-  const from = (page - 1) * PAGE_SIZE, to = from + PAGE_SIZE - 1;
+  const size = pageSizeOf(sp);
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
+  const from = (page - 1) * size, to = from + size - 1;
 
   let query = admin.from("sales")
     .select("id, document_number, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, customer:customers(name), branch:branches(code)", { count: "exact" })
@@ -42,6 +44,8 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
   if (status) query = query.eq("document_status", status);
   if (pay) query = query.eq("payment_status", pay);
   if (q) query = query.ilike("document_number", `%${q}%`);
+  if (from_) query = query.gte("document_date", from_);
+  if (to_) query = query.lte("document_date", to_);
 
   const { data, count } = await query;
   const rows = (data ?? []) as unknown as Array<{
@@ -69,6 +73,7 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
             { value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partial" }, { value: "paid", label: "Paid" },
             { value: "partially_refunded", label: "Part. refunded" }, { value: "refunded", label: "Refunded" }] },
         ]}
+        dates={{ from: from_, to: to_ }}
       />
 
       {rows.length === 0 ? (
@@ -110,7 +115,7 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
         </div>
       )}
 
-      <Pager basePath="/sales/history" params={{ q, status, pay, branch }} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/sales/history" params={{ q, status, pay, branch, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

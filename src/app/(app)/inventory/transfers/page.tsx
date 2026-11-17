@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { ExportCsvButton, ParamSelect } from "@/components/reports/report-tools";
-import { Pager, PAGE_SIZE, pageOf, str } from "@/components/reports/pager";
+import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
 
 export const metadata: Metadata = { title: "Stock Transfers" };
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -26,7 +26,7 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
   await requirePermissionPage("inventory.transfer_view");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
-  const view = str(sp, "view"), branchF = str(sp, "branch"), page = pageOf(sp);
+  const view = str(sp, "view"), branchF = str(sp, "branch"), page = pageOf(sp), size = pageSizeOf(sp);
   const inTransit = view !== "all";
   const admin = createAdminClient();
   const myBranches = ctx.user.isOwner ? ctx.branches.map((b) => b.id) : ctx.user.branchIds;
@@ -53,7 +53,7 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
   const filtered = ((rows ?? []) as unknown as Row[])
     .filter((r) => !inTransit || r.status !== "received" || r.has_open_discrepancy)
     .filter((r) => !branchF || r.source_branch_id === branchF || r.destination_branch_id === branchF);
-  const list = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const list = filtered.slice((page - 1) * size, page * size);
   const now = new Date().toISOString();
   const overdueOf = (r: Row) => r.trips.some((t) => ["dispatched", "arrived"].includes(t.status) && t.expected_arrival_at && t.expected_arrival_at < now);
   // Document counts per transfer and per trip (opened from the detail page with the usual access checks).
@@ -121,7 +121,7 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
           </Table>
         </Card>
       )}
-      <Pager basePath="/inventory/transfers" params={{ view, branch: branchF }} page={page} pageSize={PAGE_SIZE} total={filtered.length} />
+      <Pager basePath="/inventory/transfers" params={{ view, branch: branchF }} page={page} pageSize={size} total={filtered.length} />
       <p className="mt-3 text-xs text-muted-foreground">Licence numbers, licence images and costs are never included in this list or its export. Positions are as recorded by the branches (dispatch, updates, arrival); there is no live GPS tracking.</p>
     </div>
   );

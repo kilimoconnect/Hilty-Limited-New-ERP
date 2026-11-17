@@ -3,7 +3,8 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
+import { Pager, pageOf, pageSizeOf, dateParam } from "@/components/reports/pager";
+import { ListToolbar } from "@/components/common/list-toolbar";
 import { isFeatureEnabled } from "@/lib/features";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,18 +18,30 @@ import { STATUS_VARIANT } from "./status";
 export const metadata: Metadata = { title: "Rebagging" };
 
 export default async function RebaggingPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const page = pageOf(await props.searchParams);
+  const sp = await props.searchParams;
+  const page = pageOf(sp);
+  const size = pageSizeOf(sp);
   await requirePermissionPage("rebagging.view");
   const ctx = await getActiveContext();
   if (!(await isFeatureEnabled(ctx.companyId, "rebagging"))) {
     return <div><PageHeader title="Rebagging" /><EmptyState title="Rebagging is not enabled" description="Enable it under Admin → Feature Flags." /></div>;
   }
   const admin = createAdminClient();
+  const search = typeof sp.q === "string" ? sp.q.trim() : "";
+  const term = search.replace(/[,()]/g, " ").trim();
+  const status = typeof sp.status === "string" ? sp.status : "";
+  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   let q = admin.from("rebag_orders")
     .select("id, document_number, order_date, document_status, issued_kg, output_value, branch:branches(code), bulk:products!rebag_orders_bulk_product_id_fkey(name), shipment:import_shipments(id, document_number), outputs:rebag_outputs(bags, net_kg, product:products(name, net_weight_kg))", { count: "exact" })
     .eq("company_id", ctx.companyId).order("order_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false })
-      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+      .range((page - 1) * size, page * size - 1);
   if (!ctx.user.isOwner) q = q.in("branch_id", ctx.user.branchIds.length ? ctx.user.branchIds : ["00000000-0000-0000-0000-000000000000"]);
+  if (status) q = q.eq("document_status", status);
+  if (branch) q = q.eq("branch_id", branch);
+  if (from_) q = q.gte("order_date", from_);
+  if (to_) q = q.lte("order_date", to_);
+  if (term) q = q.ilike("document_number", `%${term}%`);
   const { data, count } = await q;
   type Row = { id: string; document_number: string | null; order_date: string; document_status: string; issued_kg: number; output_value: number;
     branch: { code: string } | null; bulk: { name: string } | null; shipment: { id: string; document_number: string | null } | null;
@@ -39,6 +52,12 @@ export default async function RebaggingPage(props: { searchParams: Promise<Recor
     <div>
       <PageHeader title="Rebagging" description="Bulk into 50 / 25 / 5 kg bags: bulk issued, good bags, unused bulk, losses, packaging and labour."
         actions={can(ctx.user, "rebagging.create") ? <Button asChild><Link href="/inventory/rebagging/new">New rebagging order</Link></Button> : null} />
+      <ListToolbar searchValue={search} searchPlaceholder="Search order no..."
+        selects={[
+          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "issued", label: "Issued" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }, { value: "voided", label: "Voided" }] },
+        ]}
+        dates={{ from: from_, to: to_ }} />
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card className="p-4"><p className="text-xs text-muted-foreground">In production (issued)</p><p className="text-lg font-semibold tabular-nums">{open.length}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Bulk in production</p><p className="text-lg font-semibold tabular-nums">{formatQuantity(open.reduce((a, r) => a + Number(r.issued_kg), 0))} kg</p></Card>
@@ -69,7 +88,7 @@ export default async function RebaggingPage(props: { searchParams: Promise<Recor
           </Table>
         </CardContent></Card>
       )}
-      <Pager basePath="/inventory/rebagging" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
+      <Pager basePath="/inventory/rebagging" params={{ q: search, status, branch, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

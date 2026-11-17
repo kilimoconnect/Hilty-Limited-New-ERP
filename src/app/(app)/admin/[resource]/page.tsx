@@ -7,10 +7,10 @@ import {
   loadResourceOptions,
   loadResourceRows,
 } from "@/lib/admin/queries";
+import { pageSizeOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceManager } from "@/components/admin/resource-manager";
 
-const PAGE_SIZE = 10;
 
 type ResourcePageProps = {
   params: Promise<{ resource: string }>;
@@ -40,10 +40,17 @@ export default async function AdminResourcePage(props: ResourcePageProps) {
     ? statusRaw
     : "active") as "active" | "inactive" | "all";
   const page = typeof sp.page === "string" ? Math.max(1, parseInt(sp.page, 10) || 1) : 1;
+  const pageSize = pageSizeOf(sp);
+  // Per-column filters for columns that point at another list (?f_category_id=...).
+  const filters: Record<string, string> = {};
+  for (const col of config.columns) {
+    const v = sp[`f_${col.key}`];
+    if (col.type === "ref" && typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v)) filters[col.key] = v;
+  }
 
   const [options, list] = await Promise.all([
     loadResourceOptions(config, companyId),
-    loadResourceRows(config, companyId, { q, status, page, pageSize: PAGE_SIZE }),
+    loadResourceRows(config, companyId, { q, status, page, pageSize, filters }),
   ]);
 
   return (
@@ -57,6 +64,7 @@ export default async function AdminResourcePage(props: ResourcePageProps) {
         pageSize={list.pageSize}
         options={options}
         query={{ q, status }}
+        filters={filters}
       />
     </div>
   );
