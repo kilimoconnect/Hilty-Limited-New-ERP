@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 210" role="img" aria-label="Hilty Limited">
+  <path d="M10 0h164a10 10 0 0 1 10 10v108a92 92 0 0 1-92 92a92 92 0 0 1-92-92V10A10 10 0 0 1 10 0z" fill="#1E2541"/>
+  <rect x="48" y="44" width="25" height="92" fill="#C0623F"/>
+  <rect x="80" y="77" width="25" height="59" fill="#5B7FDB"/>
+  <rect x="112" y="44" width="25" height="92" fill="#DFE3EC"/>
+  <text x="92" y="164" text-anchor="middle" font-family="Archivo, Arial, Helvetica, sans-serif" font-weight="700" font-size="13" letter-spacing="3.5" fill="#DFE3EC">HILTY</text>
+  <text x="226" y="112" font-family="Archivo, 'Arial Black', Arial, Helvetica, sans-serif" font-weight="900" font-size="96" letter-spacing="-3" fill="#1E2541">HILTY</text>
+  <rect x="228" y="140" width="46" height="8" fill="#C0623F"/>
+  <text x="292" y="150" font-family="Archivo, Arial, Helvetica, sans-serif" font-weight="600" font-size="22" letter-spacing="7" fill="#3F4766">LIMITED</text>
+</svg>

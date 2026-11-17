@@ -133,16 +133,16 @@ export function SidebarBrand({ collapsed }: { collapsed: boolean }) {
       <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md">
         <Image
           src="/icon.png"
-          alt="Letiq Limited"
-          width={1024}
+          alt="Hilty Limited"
+          width={897}
           height={1024}
           className="h-full w-full object-contain"
         />
       </div>
       {!collapsed && (
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">Letiq ERP</p>
-          <p className="truncate text-[11px] text-sidebar-muted">Letiq Limited</p>
+          <p className="truncate text-sm font-semibold text-white">Hilty ERP</p>
+          <p className="truncate text-[11px] text-sidebar-muted">Hilty Limited</p>
         </div>
       )}
     </div>

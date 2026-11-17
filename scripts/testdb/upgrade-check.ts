@@ -64,7 +64,7 @@ async function main() {
 
   // 2) Committed activity: opening stock, a sale with COGS, journals.
   const user = (await db.query<{ id: string }>(`insert into auth.users(email) values ('upgrade@test.local') returning id`)).rows[0].id;
-  const co = (await db.query<{ id: string }>(`select id from companies where code='LETIQ'`)).rows[0].id;
+  const co = (await db.query<{ id: string }>(`select id from companies where code='HILTY'`)).rows[0].id;
   const br = (await db.query<{ id: string }>(`select id from branches where company_id=$1 and code='HQ'`, [co])).rows[0].id;
   const unit = (await db.query<{ id: string }>(`select id from units where company_id=$1 and code='BAG'`, [co])).rows[0].id;
   const prod = (await db.query<{ id: string }>(

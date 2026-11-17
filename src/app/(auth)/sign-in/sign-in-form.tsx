@@ -35,9 +35,9 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
         <div className="rounded-2xl bg-white px-5 py-4 shadow-md">
           <Image
             src="/logo.png"
-            alt="Letiq Limited"
+            alt="Hilty Limited"
             width={2400}
-            height={712}
+            height={900}
             priority
             className="h-16 w-auto"
           />
