@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -46,7 +47,7 @@ export default async function ExpenseHistoryPage(props: { searchParams: SP }) {
             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Document</TableHead><TableHead>Category</TableHead><TableHead>Payee</TableHead><TableHead className="text-right">Total</TableHead><TableHead className="text-right">Outstanding</TableHead><TableHead>Payment</TableHead><TableHead>Status</TableHead><TableHead className="w-10 text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.id}>
+                <ClickableRow key={r.id} href={`/expenses/${r.id}`}>
                   <TableCell className="text-sm">{formatDate(r.document_date)}</TableCell>
                   <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
                   <TableCell className="text-sm">{r.category?.name}</TableCell>
@@ -60,7 +61,7 @@ export default async function ExpenseHistoryPage(props: { searchParams: SP }) {
                       postAction={postExpense} deleteAction={deleteExpenseDraft} voidAction={voidExpense} afterDeletePush="/expenses/history"
                       extraItems={[{ label: "View", href: `/expenses/${r.id}` }, ...(r.document_status === "posted" && Number(r.outstanding) > 0 && can(ctx.user, "purchases.record_payment") ? [{ label: "Record payment", href: `/purchases/supplier-payments/new` }] : [])]} />
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               ))}
             </TableBody>
           </Table>

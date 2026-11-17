@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -36,7 +37,7 @@ export default async function TransfersPage() {
             <TableHeader><TableRow><TableHead>Document</TableHead><TableHead>Date</TableHead><TableHead>From → To</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Fee</TableHead><TableHead>Status</TableHead><TableHead className="w-10 text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
               {list.map((r) => (
-                <TableRow key={r.id}>
+                <ClickableRow key={r.id} href={`/cash-and-banks/transfers/${r.id}`}>
                   <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
                   <TableCell className="text-sm">{formatDate(r.transfer_date)}</TableCell>
                   <TableCell className="text-sm">{r.source?.name} → {r.dest?.name}</TableCell>
@@ -48,7 +49,7 @@ export default async function TransfersPage() {
                       postAction={postTransfer} deleteAction={deleteTransferDraft} voidAction={voidTransfer} afterDeletePush="/cash-and-banks/transfers"
                       postLabel="Post transfer" extraItems={[{ label: "View", href: `/cash-and-banks/transfers/${r.id}` }]} />
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               ))}
             </TableBody>
           </Table>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -66,7 +67,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.id}>
+                <ClickableRow key={r.id} href={`/purchases/${r.id}`}>
                   <TableCell className="text-sm">{formatDate(r.document_date)}</TableCell>
                   <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
                   <TableCell className="text-sm">{r.supplier_invoice_number ?? "—"}</TableCell>
@@ -85,7 +86,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
                         ...(r.document_status === "posted" && canReturn ? [{ label: "Create return", href: `/purchases/${r.id}/return` }] : []),
                       ]} />
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               ))}
             </TableBody>
           </Table>

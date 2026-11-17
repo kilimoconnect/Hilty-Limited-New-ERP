@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
@@ -94,7 +95,7 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <TableRow key={r.id}>
+                <ClickableRow key={r.id} href={`/sales/${r.id}`}>
                   <TableCell className="text-sm">{formatDate(r.document_date)}</TableCell>
                   <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
                   <TableCell className="text-sm">{r.branch?.code}</TableCell>
@@ -106,7 +107,7 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
                   <TableCell className="text-right">
                     <Link href={`/sales/${r.id}`} className="text-sm font-medium text-primary hover:underline">Open</Link>
                   </TableCell>
-                </TableRow>
+                </ClickableRow>
               ))}
             </TableBody>
           </Table>
