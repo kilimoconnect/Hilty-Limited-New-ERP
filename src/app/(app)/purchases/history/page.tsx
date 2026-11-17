@@ -33,20 +33,31 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
   const pay = typeof sp.pay === "string" ? sp.pay : "";
+  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  const supplier = typeof sp.supplier === "string" ? sp.supplier : "";
+  // Commas and brackets would break the search filter syntax.
+  const term = q.replace(/[,()]/g, " ").trim();
+
+  const { data: suppliers } = await admin.from("suppliers").select("id, name").eq("company_id", ctx.companyId).order("name");
+  // Suppliers whose name matches the search (a short list), so search covers supplier names too.
+  const nameHits = term ? (suppliers ?? []).filter((x) => x.name.toLowerCase().includes(term.toLowerCase())).map((x) => x.id) : [];
 
   let query = admin.from("purchases")
-    .select("id, document_number, supplier_invoice_number, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, supplier:suppliers(name), branch:branches(code)", { count: "exact" })
+    .select("id, document_number, supplier_invoice_number, internal_reference, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, supplier:suppliers(name), branch:branches(code)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (status) query = query.eq("document_status", status);
   if (pay) query = query.eq("payment_status", pay);
-  if (q) query = query.or(`document_number.ilike.%${q}%,supplier_invoice_number.ilike.%${q}%`);
+  if (branch) query = query.eq("branch_id", branch);
+  if (supplier) query = query.eq("supplier_id", supplier);
+  if (term) query = query.or([`document_number.ilike.%${term}%`, `supplier_invoice_number.ilike.%${term}%`, `internal_reference.ilike.%${term}%`,
+    ...(nameHits.length ? [`supplier_id.in.(${nameHits.join(",")})`] : [])].join(","));
 
   const { data: found, count } = await query;
   const total = count ?? 0;
   const rows = (found ?? []) as unknown as Array<{
-    id: string; document_number: string | null; supplier_invoice_number: string | null; document_date: string;
+    id: string; document_number: string | null; supplier_invoice_number: string | null; internal_reference: string | null; document_date: string;
     net_total: number; tax_total: number; grand_total: number; amount_paid: number; outstanding: number;
     payment_status: string; document_status: string; supplier: { name: string } | null; branch: { code: string } | null;
   }>;
@@ -55,8 +66,10 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
     <div>
       <PageHeader title="Purchase History" description="Posted, draft and voided purchases."
         actions={<Button asChild><Link href="/purchases/new">New Purchase</Link></Button>} />
-      <ListToolbar searchValue={q} searchPlaceholder="Search purchase / invoice no..."
+      <ListToolbar searchValue={q} searchPlaceholder="Search purchase, invoice, old ref or supplier..."
         selects={[
+          { name: "branch", placeholder: "All branches", value: branch, width: "w-[150px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "supplier", placeholder: "All suppliers", value: supplier, width: "w-[200px]", options: (suppliers ?? []).map((x) => ({ value: x.id, label: x.name })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
           { name: "pay", placeholder: "All payments", value: pay, width: "w-[160px]", options: [{ value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partial" }, { value: "paid", label: "Paid" }, { value: "partially_refunded", label: "Part. refunded" }, { value: "refunded", label: "Refunded" }] },
         ]} />
@@ -65,7 +78,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
         <div className="rounded-lg border border-border bg-card">
           <Table>
             <TableHeader><TableRow>
-              <TableHead>Date</TableHead><TableHead>Document</TableHead><TableHead>Supplier inv.</TableHead>
+              <TableHead>Date</TableHead><TableHead>Branch</TableHead><TableHead>Document</TableHead><TableHead>Supplier inv.</TableHead>
               <TableHead>Supplier</TableHead><TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">Outstanding</TableHead><TableHead>Payment</TableHead>
               <TableHead>Status</TableHead><TableHead className="w-10 text-right">Actions</TableHead>
@@ -74,7 +87,9 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
               {rows.map((r) => (
                 <ClickableRow key={r.id} href={`/purchases/${r.id}`}>
                   <TableCell className="text-sm">{formatDate(r.document_date)}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
+                  <TableCell className="text-sm">{r.branch?.code ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}
+                    {r.internal_reference && r.internal_reference !== r.document_number && <div className="whitespace-nowrap text-[11px] text-muted-foreground">{r.internal_reference}</div>}</TableCell>
                   <TableCell className="text-sm">{r.supplier_invoice_number ?? "—"}</TableCell>
                   <TableCell className="text-sm">{r.supplier?.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(r.grand_total)}</TableCell>
@@ -97,7 +112,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
-      <Pager basePath="/purchases/history" params={{ q, status, pay }} page={page} pageSize={PAGE_SIZE} total={total} />
+      <Pager basePath="/purchases/history" params={{ q, status, pay, branch, supplier }} page={page} pageSize={PAGE_SIZE} total={total} />
     </div>
   );
 }
