@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll } from "@/lib/supabase/batch";
 import { type SP } from "@/lib/reports/period";
 import { str } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
@@ -22,9 +23,9 @@ export default async function PricingPage(props: { searchParams: Promise<SP> }) 
   const branchId = str(sp, "branch") || (branches.some((b) => b.id === ctx.branchId) ? ctx.branchId! : branches[0]?.id ?? "");
   const productId = str(sp, "product");
   const admin = createAdminClient();
-  const { data: stock } = await admin.from("stock_balances").select("product_id, quantity, avg_unit_cost, product:products(sku, name)")
-    .eq("company_id", ctx.companyId).eq("branch_id", branchId || "00000000-0000-0000-0000-000000000000").gt("quantity", 0);
-  const options = ((stock ?? []) as unknown as { product_id: string; product: { sku: string; name: string } | null }[])
+  const stock = await selectAll(() => admin.from("stock_balances").select("id, product_id, quantity, avg_unit_cost, product:products(sku, name)")
+    .eq("company_id", ctx.companyId).eq("branch_id", branchId || "00000000-0000-0000-0000-000000000000").gt("quantity", 0).order("id"));
+  const options = (stock as unknown as { product_id: string; product: { sku: string; name: string } | null }[])
     .map((s) => ({ id: s.product_id, label: `${s.product?.sku} — ${s.product?.name}` })).sort((a, b) => a.label.localeCompare(b.label));
   let body = <EmptyState title="Choose a product with stock at this branch" />;
   if (productId && branchId && branches.some((b) => b.id === branchId)) {

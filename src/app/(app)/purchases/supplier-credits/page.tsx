@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
@@ -11,13 +12,15 @@ import { RefundButton } from "./refund-button";
 
 export const metadata: Metadata = { title: "Supplier Credits" };
 
-export default async function SupplierCreditsPage() {
+export default async function SupplierCreditsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("purchases.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
-  const [{ data: credits }, { data: accounts }] = await Promise.all([
-    admin.from("supplier_credits").select("id, amount, remaining, fc_remaining, currency_code, credit_date, status, supplier:suppliers(name), return:purchase_returns(document_number), refunds:supplier_credit_refunds(amount, refund_date, reference)")
-      .eq("company_id", ctx.companyId).order("credit_date", { ascending: false }).limit(300),
+  const [{ data: credits, count }, { data: accounts }] = await Promise.all([
+    admin.from("supplier_credits").select("id, amount, remaining, fc_remaining, currency_code, credit_date, status, supplier:suppliers(name), return:purchase_returns(document_number), refunds:supplier_credit_refunds(amount, refund_date, reference)", { count: "exact" })
+      .eq("company_id", ctx.companyId).order("credit_date", { ascending: false }).order("id", { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
     admin.from("payment_accounts").select("id, name").eq("company_id", ctx.companyId).eq("is_active", true).order("name"),
   ]);
   type C = { id: string; amount: number; remaining: number; fc_remaining: number; currency_code: string; credit_date: string; status: string;
@@ -49,6 +52,7 @@ export default async function SupplierCreditsPage() {
           </Table>
         </Card>
       )}
+      <Pager basePath="/purchases/supplier-credits" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
     </div>
   );
 }

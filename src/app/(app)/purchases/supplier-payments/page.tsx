@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { voidSupplierPayment } from "@/lib/purchases/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,15 +15,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const metadata: Metadata = { title: "Supplier Payments" };
 
-export default async function SupplierPaymentsPage() {
+export default async function SupplierPaymentsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("purchases.record_payment");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
   const canOwner = can(ctx.user, "transactions.void");
 
-  const { data: rows } = await admin.from("supplier_payments")
-    .select("id, document_number, document_date, amount, reference, document_status, supplier:suppliers(name), branch:branches(code)")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+  const { data: rows, count } = await admin.from("supplier_payments")
+    .select("id, document_number, document_date, amount, reference, document_status, supplier:suppliers(name), branch:branches(code)", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+  const total = count ?? 0;
   const list = (rows ?? []) as unknown as Array<{ id: string; document_number: string | null; document_date: string; amount: number; reference: string | null; document_status: string; supplier: { name: string } | null; branch: { code: string } | null }>;
 
   return (
@@ -56,6 +60,7 @@ export default async function SupplierPaymentsPage() {
           </Table>
         </div>
       )}
+      <Pager basePath="/purchases/supplier-payments" params={{}} page={page} pageSize={PAGE_SIZE} total={total} />
     </div>
   );
 }

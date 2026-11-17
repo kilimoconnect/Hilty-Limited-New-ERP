@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { voidFinancialOpening } from "@/lib/cash/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -13,16 +14,18 @@ import { NewOpeningButton } from "./opening-form";
 
 export const metadata: Metadata = { title: "Financial Opening Balances" };
 
-export default async function FinancialOpeningsPage() {
+export default async function FinancialOpeningsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("cash_accounts.opening_balance");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
   const canOwner = can(ctx.user, "transactions.void");
 
   const { data: accounts } = await admin.from("payment_accounts").select("id, name").eq("company_id", ctx.companyId).eq("is_active", true).order("code");
-  const { data: rows } = await admin.from("financial_opening_balances")
-    .select("id, document_number, opening_date, reference, total_debit, total_credit, document_status")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+  const { data: rows, count } = await admin.from("financial_opening_balances")
+    .select("id, document_number, opening_date, reference, total_debit, total_credit, document_status", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   const list = (rows ?? []) as unknown as Array<{ id: string; document_number: string | null; opening_date: string; reference: string | null; total_debit: number; total_credit: number; document_status: string }>;
 
   return (
@@ -49,6 +52,7 @@ export default async function FinancialOpeningsPage() {
           </Table>
         </div>
       )}
+      <Pager basePath="/cash-and-banks/opening-balances" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
     </div>
   );
 }

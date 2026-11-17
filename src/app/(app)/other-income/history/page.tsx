@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { postOtherIncome, deleteOtherIncomeDraft, voidOtherIncome } from "@/lib/other-income/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -24,14 +25,18 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
   const canPost = can(ctx.user, "other_income.post");
   const canOwner = can(ctx.user, "transactions.void");
   const sp = await props.searchParams;
+  const page = pageOf(sp);
   const status = typeof sp.status === "string" ? sp.status : "";
 
   let query = admin.from("other_income_transactions")
-    .select("id, document_number, document_date, net_total, tax_total, grand_total, received_from, document_status, income_type:other_income_types(name), branch:branches(code)")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+    .select("id, document_number, document_date, net_total, tax_total, grand_total, received_from, document_status, income_type:other_income_types(name), branch:branches(code)", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (status) query = query.eq("document_status", status);
-  const rows = ((await query).data ?? []) as unknown as Array<{ id: string; document_number: string | null; document_date: string; net_total: number; tax_total: number; grand_total: number; received_from: string | null; document_status: string; income_type: { name: string } | null; branch: { code: string } | null }>;
+  const { data: found, count } = await query;
+  const total = count ?? 0;
+  const rows = (found ?? []) as unknown as Array<{ id: string; document_number: string | null; document_date: string; net_total: number; tax_total: number; grand_total: number; received_from: string | null; document_status: string; income_type: { name: string } | null; branch: { code: string } | null }>;
 
   return (
     <div>
@@ -63,6 +68,7 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
+      <Pager basePath="/other-income/history" params={{ status }} page={page} pageSize={PAGE_SIZE} total={total} />
     </div>
   );
 }

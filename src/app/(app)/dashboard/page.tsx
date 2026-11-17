@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { requireActiveUser } from "@/lib/auth/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll } from "@/lib/supabase/batch";
 import { getActiveContext, can } from "@/lib/context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,13 +34,13 @@ export default async function DashboardPage() {
   const { data: company } = await admin.from("companies").select("name").eq("id", companyId).maybeSingle();
 
   const [{ data: postedSales }, { data: receiptsToday }, { data: balances }] = await Promise.all([
-    admin.from("sales")
+    selectAll(() => admin.from("sales")
       .select("id, document_number, document_date, grand_total, net_total, cogs_total, outstanding, amount_paid, payment_status, created_at, customer:customers(name), branch:branches(code)")
-      .eq("company_id", companyId).eq("document_status", "posted").order("created_at", { ascending: false }),
+      .eq("company_id", companyId).eq("document_status", "posted").order("created_at", { ascending: false }).order("id")).then((data) => ({ data })),
     admin.from("customer_receipts")
       .select("amount").eq("company_id", companyId).eq("document_status", "posted").eq("document_date", today),
-    admin.from("stock_balances")
-      .select("quantity, stock_value, qty_in_transit, product:products(reorder_level)").eq("company_id", companyId),
+    selectAll(() => admin.from("stock_balances")
+      .select("id, quantity, stock_value, qty_in_transit, product:products(reorder_level)").eq("company_id", companyId).order("id")).then((data) => ({ data })),
   ]);
 
   type Sale = { id: string; document_number: string | null; document_date: string; grand_total: number; net_total: number; cogs_total: number; outstanding: number; amount_paid: number; payment_status: string; created_at: string; customer: { name: string } | null; branch: { code: string } | null };
@@ -77,11 +78,11 @@ export default async function DashboardPage() {
   const showBal = can(user, "cash_accounts.view_balance");
   const [{ data: purchases }, { data: expensesData }, { data: incomeData }, { data: supPaysToday }, { data: payables }, { data: accounts }] =
     await Promise.all([
-      admin.from("purchases").select("document_date, grand_total").eq("company_id", companyId).eq("document_status", "posted"),
-      admin.from("expenses").select("document_date, grand_total").eq("company_id", companyId).eq("document_status", "posted"),
-      admin.from("other_income_transactions").select("document_date, grand_total").eq("company_id", companyId).eq("document_status", "posted"),
+      selectAll(() => admin.from("purchases").select("id, document_date, grand_total").eq("company_id", companyId).eq("document_status", "posted").order("id")).then((data) => ({ data })),
+      selectAll(() => admin.from("expenses").select("id, document_date, grand_total").eq("company_id", companyId).eq("document_status", "posted").order("id")).then((data) => ({ data })),
+      selectAll(() => admin.from("other_income_transactions").select("id, document_date, grand_total").eq("company_id", companyId).eq("document_status", "posted").order("id")).then((data) => ({ data })),
       admin.from("supplier_payments").select("amount").eq("company_id", companyId).eq("document_status", "posted").eq("document_date", today),
-      admin.from("supplier_payables").select("outstanding").eq("company_id", companyId).in("status", ["open", "partial"]),
+      selectAll(() => admin.from("supplier_payables").select("id, outstanding").eq("company_id", companyId).in("status", ["open", "partial"]).order("id")).then((data) => ({ data })),
       admin.from("payment_accounts").select("id").eq("company_id", companyId).eq("is_active", true),
     ]);
   const sum = (rows: { grand_total?: number; amount?: number; outstanding?: number }[] | null, field: "grand_total" | "amount" | "outstanding", filter?: (r: { document_date?: string }) => boolean) =>

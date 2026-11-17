@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { isFeatureEnabled } from "@/lib/features";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,16 +16,18 @@ import { VoidCostInvoiceButton } from "./void-button";
 
 export const metadata: Metadata = { title: "Cost Invoices" };
 
-export default async function CostInvoicesPage() {
+export default async function CostInvoicesPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("cost_invoices.view");
   const ctx = await getActiveContext();
   if (!(await isFeatureEnabled(ctx.companyId, "imports"))) {
     return <div><PageHeader title="Cost Invoices" /><EmptyState title="Importation is not enabled" /></div>;
   }
   const admin = createAdminClient();
-  const { data } = await admin.from("cost_invoices")
-    .select("id, document_number, document_date, document_kind, document_status, supplier_invoice_number, net_total, tax_total, grand_total, supplier:suppliers(name), credited:credited_invoice_id(document_number), lines:cost_invoice_lines(cost_source:cost_sources(import_shipment:import_shipments(id, document_number), rebag_order:rebag_orders(id, document_number)))")
-    .eq("company_id", ctx.companyId).neq("document_status", "draft").order("document_date", { ascending: false }).limit(300);
+  const { data, count } = await admin.from("cost_invoices")
+    .select("id, document_number, document_date, document_kind, document_status, supplier_invoice_number, net_total, tax_total, grand_total, supplier:suppliers(name), credited:credited_invoice_id(document_number), lines:cost_invoice_lines(cost_source:cost_sources(import_shipment:import_shipments(id, document_number), rebag_order:rebag_orders(id, document_number)))", { count: "exact" })
+    .eq("company_id", ctx.companyId).neq("document_status", "draft").order("document_date", { ascending: false }).order("id", { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   type Row = {
     id: string; document_number: string | null; document_date: string; document_kind: string; document_status: string;
     supplier_invoice_number: string | null; net_total: number; tax_total: number; grand_total: number;
@@ -73,6 +76,7 @@ export default async function CostInvoicesPage() {
           </Table>
         </CardContent></Card>
       )}
+      <Pager basePath="/imports/cost-invoices" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
     </div>
   );
 }

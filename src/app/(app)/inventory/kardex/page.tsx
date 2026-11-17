@@ -39,23 +39,18 @@ export default async function KardexPage(props: { searchParams: SP }) {
   const page = typeof sp.page === "string" ? Math.max(1, parseInt(sp.page, 10) || 1) : 1;
   const from = (page - 1) * PAGE, to = from + PAGE - 1;
 
-  let productIds: string[] | null = null;
-  if (q) {
-    const { data } = await admin.from("products").select("id")
-      .eq("company_id", ctx.companyId).or(`sku.ilike.%${q}%,name.ilike.%${q}%`);
-    productIds = (data ?? []).map((p) => p.id);
-    if (!productIds.length) productIds = ["00000000-0000-0000-0000-000000000000"];
-  }
+  // Commas and brackets would break the search filter syntax.
+  const term = q.replace(/[,()]/g, " ").trim();
 
   let query = admin.from("stock_movements")
-    .select("id, created_at, movement_type, source_type, source_id, source_number, qty_in, qty_out, unit_cost, movement_value, balance_qty, avg_cost_after, balance_value, branch:branches(code), product:products(sku, name)", { count: "exact" })
+    .select(`id, created_at, movement_type, source_type, source_id, source_number, qty_in, qty_out, unit_cost, movement_value, balance_qty, avg_cost_after, balance_value, branch:branches(code), product:products${term ? "!inner" : ""}(sku, name)`, { count: "exact" })
     .eq("company_id", ctx.companyId)
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: false }).order("id", { ascending: false })
     .range(from, to);
   if (branch) query = query.eq("branch_id", branch);
   else if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (type) query = query.eq("movement_type", type);
-  if (productIds) query = query.in("product_id", productIds);
+  if (term) query = query.or(`sku.ilike.%${term}%,name.ilike.%${term}%`, { referencedTable: "products" });
 
   const { data, count } = await query;
   const rows = (data ?? []) as unknown as Array<{

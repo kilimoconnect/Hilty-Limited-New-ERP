@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll } from "@/lib/supabase/batch";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -30,10 +31,12 @@ export default async function ReconciliationDetail(props: { params: Params }) {
   const ledgerId = (rec.account as unknown as { ledger_account_id: string }).ledger_account_id;
   const { data: matched } = await admin.from("bank_reconciliation_matches").select("journal_line_id").eq("reconciliation_id", id);
   const matchedSet = new Set((matched ?? []).map((m) => m.journal_line_id));
-  const { data: jls } = await admin.from("journal_lines")
+  // Filter by the statement period in the query itself, and read every line in it.
+  const jls = await selectAll(() => admin.from("journal_lines")
     .select("id, debit, credit, journal:journal_entries!inner(entry_date, source_number, memo, company_id)")
-    .eq("account_id", ledgerId).limit(300);
-  const erpEntries: ErpEntry[] = ((jls ?? []) as unknown as Array<{ id: string; debit: number; credit: number; journal: { entry_date: string; source_number: string | null; memo: string | null; company_id: string } }>)
+    .eq("account_id", ledgerId).eq("journal.company_id", ctx.companyId)
+    .gte("journal.entry_date", rec.statement_start).lte("journal.entry_date", rec.statement_end).order("id"));
+  const erpEntries: ErpEntry[] = (jls as unknown as Array<{ id: string; debit: number; credit: number; journal: { entry_date: string; source_number: string | null; memo: string | null; company_id: string } }>)
     .filter((j) => j.journal.company_id === ctx.companyId && j.journal.entry_date >= rec.statement_start && j.journal.entry_date <= rec.statement_end && !matchedSet.has(j.id))
     .map((j) => ({ journal_line_id: j.id, entry_date: j.journal.entry_date, source_number: j.journal.source_number, amount: Math.round((Number(j.debit) - Number(j.credit)) * 100) / 100, memo: j.journal.memo }));
 

@@ -4,7 +4,7 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { selectByIds } from "@/lib/supabase/batch";
+import { selectAll, selectByIds } from "@/lib/supabase/batch";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -33,13 +33,15 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
   const none = ["00000000-0000-0000-0000-000000000000"];
 
   // Sender and receiver see the same transfer; other branches see nothing (Stage 1 D3).
+  const rows = await selectAll(() => {
   let q = admin.from("stock_transfers")
     .select("id, document_number, transfer_date, status, reference, has_open_discrepancy, source_branch_id, destination_branch_id, source:branches!stock_transfers_source_branch_id_fkey(code), dest:branches!stock_transfers_destination_branch_id_fkey(code), lines:stock_transfer_lines(qty_requested, qty_dispatched, qty_received, qty_quarantined, qty_short_pending, qty_lost_normal, qty_lost_abnormal), trips:stock_transfer_dispatches(id, status, trip_no, document_number, driver_name, driver_phone, vehicle_registration, dispatched_at, expected_arrival_at), agents:stock_transfer_agents(name, phone, role), events:stock_transfer_events(event_type, note, created_at)")
     .eq("company_id", ctx.companyId)
     .or(`source_branch_id.in.(${(myBranches.length ? myBranches : none).join(",")}),destination_branch_id.in.(${(myBranches.length ? myBranches : none).join(",")})`)
-    .order("created_at", { ascending: false }).limit(200);
+    .order("created_at", { ascending: false }).order("id");
   if (inTransit) q = q.in("status", ["dispatched", "partially_received", "received"]);
-  const { data: rows } = await q;
+  return q;
+  });
   type Row = {
     id: string; document_number: string | null; transfer_date: string; status: string; reference: string | null; has_open_discrepancy: boolean;
     source_branch_id: string; destination_branch_id: string; source: { code: string } | null; dest: { code: string } | null;

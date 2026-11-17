@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,13 +14,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const metadata: Metadata = { title: "Bank Reconciliation" };
 
-export default async function ReconciliationListPage() {
+export default async function ReconciliationListPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("reconciliation.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
-  const { data: rows } = await admin.from("bank_reconciliations")
-    .select("id, statement_start, statement_end, statement_closing, status, account:payment_accounts(name)")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+  const { data: rows, count } = await admin.from("bank_reconciliations")
+    .select("id, statement_start, statement_end, statement_closing, status, account:payment_accounts(name)", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   const list = (rows ?? []) as unknown as Array<{ id: string; statement_start: string; statement_end: string; statement_closing: number; status: string; account: { name: string } | null }>;
   const variant = (s: string) => s === "finalized" ? "success" : s === "reopened" ? "warning" : "muted";
 
@@ -45,6 +48,7 @@ export default async function ReconciliationListPage() {
           </Table>
         </div>
       )}
+      <Pager basePath="/cash-and-banks/reconciliation" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
     </div>
   );
 }

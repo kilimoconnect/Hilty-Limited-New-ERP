@@ -4,6 +4,7 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { postPurchase, deletePurchaseDraft, voidPurchase } from "@/lib/purchases/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -28,19 +29,23 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
   const canReturn = can(ctx.user, "purchases.create_return");
 
   const sp = await props.searchParams;
+  const page = pageOf(sp);
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
   const pay = typeof sp.pay === "string" ? sp.pay : "";
 
   let query = admin.from("purchases")
-    .select("id, document_number, supplier_invoice_number, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, supplier:suppliers(name), branch:branches(code)")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+    .select("id, document_number, supplier_invoice_number, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, supplier:suppliers(name), branch:branches(code)", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("document_date", { ascending: false }).order("created_at", { ascending: false })
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (status) query = query.eq("document_status", status);
   if (pay) query = query.eq("payment_status", pay);
   if (q) query = query.or(`document_number.ilike.%${q}%,supplier_invoice_number.ilike.%${q}%`);
 
-  const rows = ((await query).data ?? []) as unknown as Array<{
+  const { data: found, count } = await query;
+  const total = count ?? 0;
+  const rows = (found ?? []) as unknown as Array<{
     id: string; document_number: string | null; supplier_invoice_number: string | null; document_date: string;
     net_total: number; tax_total: number; grand_total: number; amount_paid: number; outstanding: number;
     payment_status: string; document_status: string; supplier: { name: string } | null; branch: { code: string } | null;
@@ -92,6 +97,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
+      <Pager basePath="/purchases/history" params={{ q, status, pay }} page={page} pageSize={PAGE_SIZE} total={total} />
     </div>
   );
 }

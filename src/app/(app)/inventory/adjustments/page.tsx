@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,7 +16,8 @@ import { DocStatusBadge } from "@/components/common/doc-status-badge";
 
 export const metadata: Metadata = { title: "Stock Adjustments" };
 
-export default async function AdjustmentsPage() {
+export default async function AdjustmentsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("inventory.adjustment_create");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
@@ -25,9 +27,10 @@ export default async function AdjustmentsPage() {
   const { data: products } = await admin.from("products")
     .select("id, sku, name").eq("company_id", ctx.companyId).eq("is_active", true).order("sku");
 
-  const { data: rows } = await admin.from("stock_adjustments")
-    .select("id, document_number, adjustment_date, direction, reason, total_value, document_status, branch:branches(code)")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+  const { data: rows, count } = await admin.from("stock_adjustments")
+    .select("id, document_number, adjustment_date, direction, reason, total_value, document_status, branch:branches(code)", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   const list = (rows ?? []) as unknown as Array<{
     id: string; document_number: string | null; adjustment_date: string; direction: string;
     reason: string; total_value: number; document_status: string; branch: { code: string } | null;
@@ -76,6 +79,7 @@ export default async function AdjustmentsPage() {
           </Table>
         </div>
       )}
+      <Pager basePath="/inventory/adjustments" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
     </div>
   );
 }

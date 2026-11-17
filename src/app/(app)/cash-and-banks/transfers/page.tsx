@@ -4,6 +4,7 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { postTransfer, deleteTransferDraft, voidTransfer } from "@/lib/cash/actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -16,16 +17,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const metadata: Metadata = { title: "Transfers" };
 
-export default async function TransfersPage() {
+export default async function TransfersPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("cash_transfers.view");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
   const canPost = can(ctx.user, "cash_transfers.post");
   const canOwner = can(ctx.user, "transactions.void");
 
-  const { data: rows } = await admin.from("cash_transfers")
-    .select("id, document_number, transfer_date, amount, fee, document_status, reference, source:payment_accounts!cash_transfers_source_account_id_fkey(name), dest:payment_accounts!cash_transfers_destination_account_id_fkey(name)")
-    .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).limit(100);
+  const { data: rows, count } = await admin.from("cash_transfers")
+    .select("id, document_number, transfer_date, amount, fee, document_status, reference, source:payment_accounts!cash_transfers_source_account_id_fkey(name), dest:payment_accounts!cash_transfers_destination_account_id_fkey(name)", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("transfer_date", { ascending: false }).order("created_at", { ascending: false })
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+  const total = count ?? 0;
   const list = (rows ?? []) as unknown as Array<{ id: string; document_number: string | null; transfer_date: string; amount: number; fee: number; document_status: string; reference: string | null; source: { name: string } | null; dest: { name: string } | null }>;
 
   return (
@@ -55,6 +59,7 @@ export default async function TransfersPage() {
           </Table>
         </div>
       )}
+      <Pager basePath="/cash-and-banks/transfers" params={{}} page={page} pageSize={PAGE_SIZE} total={total} />
     </div>
   );
 }

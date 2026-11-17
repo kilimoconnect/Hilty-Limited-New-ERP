@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { isFeatureEnabled } from "@/lib/features";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,7 +16,8 @@ import { STATUS_VARIANT } from "./status";
 
 export const metadata: Metadata = { title: "Rebagging" };
 
-export default async function RebaggingPage() {
+export default async function RebaggingPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const page = pageOf(await props.searchParams);
   await requirePermissionPage("rebagging.view");
   const ctx = await getActiveContext();
   if (!(await isFeatureEnabled(ctx.companyId, "rebagging"))) {
@@ -23,10 +25,11 @@ export default async function RebaggingPage() {
   }
   const admin = createAdminClient();
   let q = admin.from("rebag_orders")
-    .select("id, document_number, order_date, document_status, issued_kg, output_value, branch:branches(code), bulk:products!rebag_orders_bulk_product_id_fkey(name), shipment:import_shipments(id, document_number), outputs:rebag_outputs(bags, net_kg, product:products(name, net_weight_kg))")
-    .eq("company_id", ctx.companyId).order("order_date", { ascending: false }).order("created_at", { ascending: false }).limit(300);
+    .select("id, document_number, order_date, document_status, issued_kg, output_value, branch:branches(code), bulk:products!rebag_orders_bulk_product_id_fkey(name), shipment:import_shipments(id, document_number), outputs:rebag_outputs(bags, net_kg, product:products(name, net_weight_kg))", { count: "exact" })
+    .eq("company_id", ctx.companyId).order("order_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (!ctx.user.isOwner) q = q.in("branch_id", ctx.user.branchIds.length ? ctx.user.branchIds : ["00000000-0000-0000-0000-000000000000"]);
-  const { data } = await q;
+  const { data, count } = await q;
   type Row = { id: string; document_number: string | null; order_date: string; document_status: string; issued_kg: number; output_value: number;
     branch: { code: string } | null; bulk: { name: string } | null; shipment: { id: string; document_number: string | null } | null;
     outputs: { bags: number; net_kg: number; product: { name: string; net_weight_kg: number } | null }[] };
@@ -66,6 +69,7 @@ export default async function RebaggingPage() {
           </Table>
         </CardContent></Card>
       )}
+      <Pager basePath="/inventory/rebagging" params={{}} page={page} pageSize={PAGE_SIZE} total={count ?? 0} />
     </div>
   );
 }

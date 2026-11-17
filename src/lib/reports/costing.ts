@@ -98,13 +98,15 @@ export interface BranchCostRow {
 }
 export async function branchLandedCost(companyId: string, branchIds: string[] | null): Promise<BranchCostRow[]> {
   const admin = createAdminClient();
-  let q = admin.from("stock_balances").select("branch_id, product_id, quantity, stock_value, avg_unit_cost, branch:branches(code), product:products(sku, name, stock_role, net_weight_kg, selling_price, base_unit_id)")
-    .eq("company_id", companyId).gt("quantity", 0);
-  if (branchIds) q = q.in("branch_id", branchIds.length ? branchIds : ["00000000-0000-0000-0000-000000000000"]);
-  const [{ data: bal }, { data: units }, { data: incoming }] = await Promise.all([
-    q,
+  const balances = () => {
+    const q = admin.from("stock_balances").select("id, branch_id, product_id, quantity, stock_value, avg_unit_cost, branch:branches(code), product:products(sku, name, stock_role, net_weight_kg, selling_price, base_unit_id)")
+      .eq("company_id", companyId).gt("quantity", 0);
+    return (branchIds ? q.in("branch_id", branchIds.length ? branchIds : ["00000000-0000-0000-0000-000000000000"]) : q).order("id");
+  };
+  const [bal, { data: units }, incoming] = await Promise.all([
+    selectAll(balances),
     admin.from("units").select("id, kg_factor").eq("company_id", companyId),
-    admin.from("stock_movements").select("branch_id, product_id, unit_cost, created_at").eq("company_id", companyId).eq("movement_type", "transfer_in").order("created_at", { ascending: false }).limit(2000),
+    selectAll(() => admin.from("stock_movements").select("id, branch_id, product_id, unit_cost, created_at").eq("company_id", companyId).eq("movement_type", "transfer_in").order("created_at", { ascending: false }).order("id")),
   ]);
   const kgf = new Map(((units ?? []) as { id: string; kg_factor: number | null }[]).map((u) => [u.id, u.kg_factor == null ? null : N(u.kg_factor)]));
   const lastIn = new Map<string, { unit: number; date: string }>();

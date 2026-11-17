@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClickableRow } from "@/components/common/clickable-row";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { Pager, PAGE_SIZE, pageOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/table";
 
 export const metadata: Metadata = { title: "Sales History" };
-const PAGE = 20;
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function SalesHistoryPage(props: { searchParams: SP }) {
@@ -30,13 +29,13 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
   const status = typeof sp.status === "string" ? sp.status : "";
   const pay = typeof sp.pay === "string" ? sp.pay : "";
   const branch = typeof sp.branch === "string" ? sp.branch : "";
-  const page = typeof sp.page === "string" ? Math.max(1, parseInt(sp.page, 10) || 1) : 1;
-  const from = (page - 1) * PAGE, to = from + PAGE - 1;
+  const page = pageOf(sp);
+  const from = (page - 1) * PAGE_SIZE, to = from + PAGE_SIZE - 1;
 
   let query = admin.from("sales")
     .select("id, document_number, document_date, net_total, tax_total, grand_total, amount_paid, outstanding, payment_status, document_status, customer:customers(name), branch:branches(code)", { count: "exact" })
     .eq("company_id", ctx.companyId)
-    .order("created_at", { ascending: false })
+    .order("document_date", { ascending: false }).order("created_at", { ascending: false })
     .range(from, to);
   if (!ctx.user.isOwner) query = query.in("branch_id", ctx.branches.map((b) => b.id));
   if (branch) query = query.eq("branch_id", branch);
@@ -51,9 +50,6 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
     customer: { name: string } | null; branch: { code: string } | null;
   }>;
   const total = count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE));
-
-  const qs = (p: number) => new URLSearchParams({ ...(q && { q }), ...(status && { status }), ...(pay && { pay }), ...(branch && { branch }), page: String(p) }).toString();
 
   return (
     <div>
@@ -114,16 +110,7 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
         </div>
       )}
 
-      {total > PAGE && (
-        <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-          <span>{from + 1}–{Math.min(page * PAGE, total)} of {total}</span>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" disabled={page <= 1}><Link href={`/sales/history?${qs(page - 1)}`}><ChevronLeft className="h-4 w-4" /> Prev</Link></Button>
-            <span>Page {page} of {totalPages}</span>
-            <Button asChild variant="outline" size="sm" disabled={page >= totalPages}><Link href={`/sales/history?${qs(page + 1)}`}>Next <ChevronRight className="h-4 w-4" /></Link></Button>
-          </div>
-        </div>
-      )}
+      <Pager basePath="/sales/history" params={{ q, status, pay, branch }} page={page} pageSize={PAGE_SIZE} total={total} />
     </div>
   );
 }
