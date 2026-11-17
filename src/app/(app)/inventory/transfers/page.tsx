@@ -4,6 +4,7 @@ import { ClickableRow } from "@/components/common/clickable-row";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectByIds } from "@/lib/supabase/batch";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -55,7 +56,7 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
   const overdueOf = (r: Row) => r.trips.some((t) => ["dispatched", "arrived"].includes(t.status) && t.expected_arrival_at && t.expected_arrival_at < now);
   // Document counts per transfer and per trip (opened from the detail page with the usual access checks).
   const ownerIds = filtered.flatMap((r) => [r.id, ...r.trips.map((t) => t.id)]);
-  const { data: docs } = ownerIds.length ? await admin.from("document_attachments").select("owner_id").in("owner_id", ownerIds) : { data: [] };
+  const docs = await selectByIds<{ owner_id: string }>(ownerIds, (c) => admin.from("document_attachments").select("id, owner_id").in("owner_id", c).order("id"));
   const docCount = (r: Row) => ((docs ?? []) as { owner_id: string }[]).filter((d) => d.owner_id === r.id || r.trips.some((t) => t.id === d.owner_id)).length;
 
   return (

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll, selectByIds } from "@/lib/supabase/batch";
 import { localDayEnd, localDayStart } from "@/lib/format";
 
 /*
@@ -134,16 +135,18 @@ export interface TransferCostRow {
 }
 export async function transferCosting(companyId: string, branchIds: string[] | null, from: string, to: string): Promise<TransferCostRow[]> {
   const admin = createAdminClient();
-  const { data } = await admin.from("stock_transfers")
+  const data = await selectAll(() => admin.from("stock_transfers")
     .select("id, document_number, transfer_date, status, cost_status, posts_in_transit, source_branch_id, destination_branch_id, src:branches!stock_transfers_source_branch_id_fkey(code), dst:branches!stock_transfers_destination_branch_id_fkey(code), lines:stock_transfer_lines(id, product_id, qty_dispatched, qty_received, dispatched_value, received_value, transit_value, lost_value, charges_applied, product:products(sku, name))")
-    .eq("company_id", companyId).eq("posts_in_transit", true).neq("status", "draft").gte("transfer_date", from).lte("transfer_date", to).order("transfer_date", { ascending: false });
-  const ts = ((data ?? []) as unknown as Array<Record<string, unknown>>)
+    .eq("company_id", companyId).eq("posts_in_transit", true).neq("status", "draft").gte("transfer_date", from).lte("transfer_date", to).order("transfer_date", { ascending: false }).order("id"));
+  const ts = data
     .filter((t) => !branchIds || branchIds.includes(t.source_branch_id as string) || branchIds.includes(t.destination_branch_id as string));
   const ids = ts.map((t) => t.id as string);
-  const [{ data: charges }, { data: moves }] = await Promise.all([
-    ids.length ? admin.from("cost_sources").select("stock_transfer_id, status, inventory_treatment, estimated_amount, accrued_amount, actual_amount, description, category:cost_categories(code)").in("stock_transfer_id", ids).neq("status", "voided") : Promise.resolve({ data: [] }),
-    ids.length ? admin.from("stock_movements").select("source_id, product_id, avg_cost_after, created_at").in("source_id", ids).eq("movement_type", "transfer_in").order("created_at", { ascending: false }) : Promise.resolve({ data: [] }),
+  const [charges, moves] = await Promise.all([
+    selectByIds(ids, (c) => admin.from("cost_sources").select("id, stock_transfer_id, status, inventory_treatment, estimated_amount, accrued_amount, actual_amount, description, category:cost_categories(code)").in("stock_transfer_id", c).neq("status", "voided").order("id")),
+    selectByIds(ids, (c) => admin.from("stock_movements").select("id, source_id, product_id, avg_cost_after, created_at").in("source_id", c).eq("movement_type", "transfer_in").order("created_at", { ascending: false }).order("id")),
   ]);
+  // Chunks arrive separately; keep the newest movement first, as before.
+  moves.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const out: TransferCostRow[] = [];
   for (const t of ts) {
     const cs = ((charges ?? []) as unknown as { stock_transfer_id: string; status: string; inventory_treatment: string; estimated_amount: number; accrued_amount: number; actual_amount: number; description: string | null; category: { code: string } | null }[])

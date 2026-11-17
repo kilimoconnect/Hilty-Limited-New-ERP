@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll } from "@/lib/supabase/batch";
 
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const N = (v: unknown) => Number(v ?? 0);
@@ -43,9 +44,10 @@ export interface GLLine {
 export async function generalLedger(companyId: string, accountId: string, start: string, end: string) {
   const admin = createAdminClient();
   const opening = await accountBalance(companyId, accountId, addDays(start, -1));
-  const { data } = await admin.rpc("report_gl_lines", { p_company: companyId, p_account: accountId, p_start: start, p_end: end });
+  // A busy account (e.g. Inventory) easily has more than the API's 1,000 rows per request.
+  const data = await selectAll(() => admin.rpc("report_gl_lines", { p_company: companyId, p_account: accountId, p_start: start, p_end: end }));
   let running = opening;
-  const lines: GLLine[] = ((data ?? []) as Record<string, unknown>[]).map((r) => {
+  const lines: GLLine[] = data.map((r) => {
     running = round2(running + N(r.debit) - N(r.credit));
     return {
       journal_id: r.journal_id as string, entry_date: r.entry_date as string, created_at: r.created_at as string,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { selectAll } from "@/lib/supabase/batch";
 import { resolvePeriod, type SP } from "@/lib/reports/period";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
@@ -46,7 +47,7 @@ export default async function ProfitabilityPage(props: { searchParams: Promise<S
   let note = "";
   if (dim === "shipment") {
     const [{ data: tr }, { data: ships }] = await Promise.all([
-      admin.rpc("shipment_sales_trace", { p_company: ctx.companyId, p_from: start, p_to: end }),
+      selectAll(() => admin.rpc("shipment_sales_trace", { p_company: ctx.companyId, p_from: start, p_to: end })).then((data) => ({ data })),
       admin.from("import_shipments").select("id, document_number").eq("company_id", ctx.companyId),
     ]);
     const sm = new Map((ships ?? []).map((s) => [s.id, s.document_number ?? "—"]));
@@ -57,7 +58,7 @@ export default async function ProfitabilityPage(props: { searchParams: Promise<S
     }
     note = "Shipment figures are an allocation: sales come from blended weighted-average pools, so each sale is attributed to shipments in proportion to the units of each shipment still in the pool when it was sold (the same replay the costing engine uses, through rebagging and transfers). Cost of sales is the blended average at the time of sale, not the shipment's own lot cost. Units are base units of the product sold (kg for bulk, bags for packed SKUs). Returns and later cost adjustments are reported under the other views.";
   } else {
-    const { data } = await admin.rpc("sales_profitability", { p_company: ctx.companyId, p_from: start, p_to: end });
+    const data = await selectAll(() => admin.rpc("sales_profitability", { p_company: ctx.companyId, p_from: start, p_to: end }));
     for (const r of (data ?? []) as { branch_id: string; product_id: string; qty_sold: number; revenue: number; cogs: number; qty_returned: number; returns_revenue: number; returns_cogs: number; late_cost: number }[]) {
       if (scope && !scope.has(r.branch_id)) continue;
       const p = pm.get(r.product_id);
