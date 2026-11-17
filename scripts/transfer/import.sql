@@ -228,12 +228,17 @@ begin
   values ((select company from legacy.ctx), legacy.br(p_branch), p_date, 'Old system opening stock',
           'Opening stock carried over from the old system (kardex opening balances).', o)
   returning id into id_;
+  -- The old opening costs include VAT (as all old purchase costs did); the new
+  -- system carries stock net of recoverable VAT, so take the VAT out using the
+  -- product's old tax rate.
   insert into public.inventory_opening_lines(opening_id, product_id, quantity, unit_cost, line_no)
-  select id_, product_id, q, round(v / q, 4), row_number() over (order by product_id)
+  select id_, x.product_id, x.q, round(x.v / x.q / (1 + coalesce(t.rate, 0)), 4), row_number() over (order by x.product_id)
     from (select product_id, sum(qty) q, sum(qty * unit_cost) v
             from legacy.public_kardex where movement_type = 'OPENING_BALANCE' and branch_id = p_branch
            group by product_id) x
-   where q > 0;
+    left join legacy.public_products p on p.id = x.product_id
+    left join legacy.ref_tax_codes t on t.id = p.tax_code_id
+   where x.q > 0;
   perform public.post_inventory_opening(id_, o, null);
 end; $$;
 

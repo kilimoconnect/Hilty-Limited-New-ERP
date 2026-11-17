@@ -5,6 +5,7 @@
  *
  *   npx tsx scripts/transfer/run-import.ts            (dry run: everything rolled back)
  *   npx tsx scripts/transfer/run-import.ts --commit   (keeps the result)
+ *   add --reset to first clear a previous import (see RESET_TABLES)
  *
  * Prerequisites: stage.ts has been run; users.ts --commit for logins/profiles.
  */
@@ -14,7 +15,64 @@ import type { Client } from "pg";
 import { createDbClient } from "../db";
 
 const commit = process.argv.includes("--commit");
+const reset = process.argv.includes("--reset");
 const OPENING_DATE = "2026-01-01";
+
+// Tables that hold only documents and their postings. --reset empties them so
+// the import can run again; settings, master data, users and the chart of
+// accounts are kept. Refused if any document did not come from the old system.
+const RESET_TABLES = [
+  "sale_payments", "sale_lines", "sales",
+  "purchase_payments", "purchase_lines", "purchases", "supplier_payables", "supplier_payable_events",
+  "expense_payments", "expenses", "cash_transfers",
+  "stock_transfer_receipt_lines", "stock_transfer_receipts", "stock_transfer_dispatch_lines", "stock_transfer_dispatches",
+  "stock_transfer_events", "stock_transfer_lines", "stock_transfers",
+  "inventory_opening_lines", "inventory_openings",
+  "stock_movements", "stock_balances", "journal_lines", "journal_entries",
+  "transaction_status_history", "idempotency_keys",
+];
+
+async function resetPreviousImport(db: Client) {
+  const { rows } = await db.query(`select
+      (select count(*) from public.sales where id not in (select id from legacy.fin_sales))
+    + (select count(*) from public.purchases where id not in (select id from legacy.fin_purchases))
+    + (select count(*) from public.expenses where id not in (select id from legacy.ops_petty_cash))
+    + (select count(*) from public.cash_transfers where id not in (select id from legacy.ops_cash_transfers))
+    + (select count(*) from public.stock_transfers where id not in (select id from legacy.fin_transfers))
+    + (select count(*) from public.inventory_openings where reference is distinct from 'Old system opening stock')
+    + (select count(*) from public.journal_entries where source_type not in
+        ('sale','purchase','expense','cash_transfer','inventory_opening','stock_transfer_dispatch','stock_transfer_receipt')) as n`);
+  if (Number(rows[0].n) > 0) {
+    throw new Error(`${rows[0].n} document(s) were entered in the new system - refusing to reset.`);
+  }
+  // Every table that references the cleared ones must be cleared with them; that
+  // is only allowed when it is empty (e.g. returns, receipts never used yet).
+  const set = new Set(RESET_TABLES);
+  for (let grew = true; grew; ) {
+    grew = false;
+    const { rows: refs } = await db.query<{ t: string }>(
+      `select distinct c.conrelid::regclass::text as t from pg_constraint c
+        where c.contype = 'f' and c.confrelid::regclass::text = any($1::text[]) and not (c.conrelid::regclass::text = any($1::text[]))`,
+      [[...set].map((t) => t)]);
+    for (const { t } of refs) {
+      const name = t.replace(/^public\./, "");
+      const { rows: c } = await db.query(`select exists (select 1 from public.${name}) as has`);
+      if (c[0].has) throw new Error(`Table ${name} references imported documents and holds data - refusing to reset.`);
+      set.add(name);
+      grew = true;
+    }
+  }
+  await db.query(`truncate ${[...set].map((t) => `public.${t}`).join(", ")}`);
+  await db.query("update public.document_sequences set current_number = 0, updated_at = now()");
+  console.log(`Reset: previous import cleared (${set.size} document tables, ${set.size - RESET_TABLES.length} of them already empty; numbering restarted).`);
+}
+
+const SUMMARY = `select (select round(sum(total_cost)) from public.inventory_openings where document_status='posted') opening_stock,
+  (select round(sum(net_total)) from public.sales where document_status='posted') sales_net,
+  (select round(sum(cogs_total)) from public.sales where document_status='posted') cogs,
+  (select round(sum(net_total) - sum(cogs_total)) from public.sales where document_status='posted') gross_profit,
+  (select round(sum(stock_value)) from public.stock_balances) closing_stock,
+  (select round(sum(quantity)) from public.stock_balances) closing_qty`;
 
 async function table(db: Client, title: string, sql: string) {
   const { rows } = await db.query(sql);
@@ -31,6 +89,8 @@ async function main() {
   try {
     await db.query("set statement_timeout = 0");
     await db.query("begin");
+    await table(db, "Before", SUMMARY);
+    if (reset) await resetPreviousImport(db);
     const already = await db.query(
       "select count(*)::int n from public.sales where id in (select id from legacy.fin_sales)").catch(() => ({ rows: [{ n: 0 }] }));
     if (already.rows[0].n > 0) throw new Error("Old documents are already imported - refusing to import twice.");
@@ -95,6 +155,8 @@ async function main() {
       select p.email, p.full_name, r.code role, p.is_active,
              (select string_agg(b.code, ',' order by b.code) from public.user_branch_access a join public.branches b on b.id=a.branch_id where a.user_id=p.id) branches
         from public.user_profiles p join public.roles r on r.id = p.role_id order by p.email`);
+
+    await table(db, "After", SUMMARY);
 
     if (commit) {
       await db.query(`drop function if exists legacy.run_import(date), legacy.load_master(), legacy.imp_opening(uuid, date),
