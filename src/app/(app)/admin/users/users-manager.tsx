@@ -3,12 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, Plus, Power, KeyRound, Search, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, Pencil, Plus, Power, Search, ShieldCheck } from "lucide-react";
 import {
   createUser,
   updateUser,
   setUserActive,
-  sendPasswordReset,
 } from "@/lib/admin/users-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,12 +88,6 @@ export function UsersManager({
     router.refresh();
   }
 
-  async function onReset(u: UserRow) {
-    const res = await sendPasswordReset(u.id);
-    if (res.ok) toast.success(`Password reset email sent to ${u.email}.`);
-    else toast.error(res.error ?? "Could not send reset.");
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -157,9 +150,6 @@ export function UsersManager({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setFormUser(u)}>
                           <Pencil className="h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onReset(u)}>
-                          <KeyRound className="h-4 w-4" /> Send password reset
                         </DropdownMenuItem>
                         {!u.isPrimaryOwner && u.id !== currentUserId && (
                           <DropdownMenuItem

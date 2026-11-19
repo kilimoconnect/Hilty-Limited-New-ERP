@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { assertOwner } from "@/lib/auth/guards";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { writeAuditLog } from "@/lib/audit";
 import { OWNER_ROLE } from "@/lib/auth/permissions";
@@ -307,35 +306,5 @@ export async function setUserActive(
   });
 
   revalidatePath("/admin/users");
-  return { ok: true };
-}
-
-export async function sendPasswordReset(userId: string): Promise<UserResult> {
-  let owner;
-  try {
-    owner = await assertOwner();
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Not authorized." };
-  }
-
-  const admin = createAdminClient();
-  const { data: target } = await admin
-    .from("user_profiles")
-    .select("email")
-    .eq("id", userId)
-    .maybeSingle();
-  if (!target) return { ok: false, error: "User not found." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(target.email);
-  if (error) return { ok: false, error: error.message };
-
-  await writeAuditLog({
-    userId: owner.id,
-    action: "user.password_reset",
-    resourceType: "user_profiles",
-    resourceId: userId,
-  });
-
   return { ok: true };
 }
