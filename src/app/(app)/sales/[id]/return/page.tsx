@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { branchPaymentOptions } from "@/lib/payment-methods";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReturnForm, type RLine } from "./return-form";
 
@@ -37,9 +38,7 @@ export default async function ReturnPage(props: { params: Params }) {
     returned: returnedMap.get(l.id) ?? 0, unit_price: Number(l.unit_price), line_total: Number(l.line_total),
   }));
 
-  const { data: accounts } = await admin.from("payment_accounts")
-    .select("id, name, branch_id").eq("company_id", ctx.companyId).eq("is_active", true).order("code");
-  const branchAccounts = (accounts ?? []).filter((a) => !a.branch_id || a.branch_id === sale.branch_id);
+  const branchAccounts = await branchPaymentOptions(ctx.companyId, sale.branch_id);
 
   return (
     <div>

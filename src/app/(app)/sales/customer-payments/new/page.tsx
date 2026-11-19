@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { branchPaymentOptions } from "@/lib/payment-methods";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReceiptForm, type CustomerWithInvoices } from "./receipt-form";
@@ -41,9 +42,7 @@ export default async function NewReceiptPage(props: { searchParams: SP }) {
   }
   const customers = Array.from(map.values());
 
-  const { data: accounts } = await admin.from("payment_accounts")
-    .select("id, name, branch_id").eq("company_id", ctx.companyId).eq("is_active", true).order("code");
-  const branchAccounts = (accounts ?? []).filter((a) => !a.branch_id || a.branch_id === ctx.branchId);
+  const branchAccounts = await branchPaymentOptions(ctx.companyId, ctx.branchId);
 
   return (
     <div>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { branchPaymentOptions } from "@/lib/payment-methods";
 import { PageHeader } from "@/components/ui/page-header";
 import { PurchaseReturnForm, type RLine } from "./return-form";
 
@@ -34,8 +35,7 @@ export default async function PurchaseReturnPage(props: { params: Params }) {
     fc_line_total: l.fc_gross_amount == null ? null : Number(l.fc_gross_amount),
   }));
 
-  const { data: accounts } = await admin.from("payment_accounts").select("id, name, branch_id").eq("company_id", ctx.companyId).eq("is_active", true).order("code");
-  const branchAccounts = (accounts ?? []).filter((a) => !a.branch_id || a.branch_id === pur.branch_id);
+  const branchAccounts = await branchPaymentOptions(ctx.companyId, pur.branch_id);
 
   return (
     <div>

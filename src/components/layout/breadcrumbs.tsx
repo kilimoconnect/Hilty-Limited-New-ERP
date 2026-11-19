@@ -18,6 +18,7 @@ const LABELS: Record<string, string> = {
   units: "Units of Measurement",
   "tax-codes": "Tax Codes",
   "payment-accounts": "Payment Accounts",
+  "payment-methods": "Payment Methods & Banks",
   "other-income-types": "Other Income Types",
   "expense-categories": "Expense Categories",
   customers: "Customers",

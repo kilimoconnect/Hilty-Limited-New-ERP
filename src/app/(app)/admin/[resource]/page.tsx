@@ -10,6 +10,8 @@ import {
 import { pageSizeOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
 import { ResourceManager } from "@/components/admin/resource-manager";
+import { BranchPaymentMethods } from "@/components/admin/payment-methods";
+import { loadPaymentMethods } from "@/lib/admin/payment-method-queries";
 
 
 type ResourcePageProps = {
@@ -48,9 +50,11 @@ export default async function AdminResourcePage(props: ResourcePageProps) {
     if (col.type === "ref" && typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v)) filters[col.key] = v;
   }
 
-  const [options, list] = await Promise.all([
+  const [options, list, pm] = await Promise.all([
     loadResourceOptions(config, companyId),
     loadResourceRows(config, companyId, { q, status, page, pageSize, filters }),
+    // Branches also show their payment methods (Assign Methods), as in the old system.
+    resource === "branches" ? loadPaymentMethods(companyId) : Promise.resolve(null),
   ]);
 
   return (
@@ -66,6 +70,7 @@ export default async function AdminResourcePage(props: ResourcePageProps) {
         query={{ q, status }}
         filters={filters}
       />
+      {pm && <div className="mt-6"><BranchPaymentMethods methods={pm.methods} branches={pm.branches} /></div>}
     </div>
   );
 }

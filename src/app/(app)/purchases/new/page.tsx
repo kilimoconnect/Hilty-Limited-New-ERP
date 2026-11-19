@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { branchPaymentOptions } from "@/lib/payment-methods";
 import { selectAll } from "@/lib/supabase/batch";
 import { flattenProducts } from "@/lib/products";
 import { isFeatureEnabled } from "@/lib/features";
@@ -46,11 +47,11 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
 
   const fxAllowed = !order && can(ctx.user, "fx.enter_rate") && await isFeatureEnabled(ctx.companyId, "fx_settlement");
 
-  const [{ data: products }, { data: taxCodes }, { data: accounts }, { data: suppliers }, { data: currencies }, { data: rates }, { data: advances },
+  const [{ data: products }, { data: taxCodes }, branchAccounts, { data: suppliers }, { data: currencies }, { data: rates }, { data: advances },
     { data: categories }, { data: brands }, { data: units }, recent] = await Promise.all([
     admin.from("products").select("id, sku, barcode, name, tax_code_id, category:product_categories(name), brand:brands(name)").eq("company_id", ctx.companyId).eq("is_active", true).order("name"),
     admin.from("tax_codes").select("id, name, rate, is_inclusive").eq("company_id", ctx.companyId).eq("is_active", true).order("code"),
-    admin.from("payment_accounts").select("id, name, branch_id").eq("company_id", ctx.companyId).eq("is_active", true).order("code"),
+    branchPaymentOptions(ctx.companyId, ctx.branchId),
     admin.from("suppliers").select("id, code, name, phone, payment_terms_days").eq("company_id", ctx.companyId).eq("is_active", true).order("name"),
     fxAllowed ? admin.from("currencies").select("code, name").eq("is_active", true).eq("is_functional", false).order("code") : Promise.resolve({ data: [] }),
     fxAllowed ? admin.from("exchange_rates").select("currency_code, rate_date, rate").eq("company_id", ctx.companyId).order("rate_date", { ascending: false }).limit(1000) : Promise.resolve({ data: [] }),
@@ -70,7 +71,6 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
     const d = r.purchase?.document_date ?? "";
     if (!lastDate[r.product_id] || d > lastDate[r.product_id]) { lastDate[r.product_id] = d; lastCosts[r.product_id] = Number(r.unit_cost); }
   }
-  const branchAccounts = (accounts ?? []).filter((a) => !a.branch_id || a.branch_id === ctx.branchId);
   const advanceOpts: AdvanceOpt[] = ((advances ?? []) as unknown as Array<{ id: string; supplier_id: string; currency_code: string; fc_remaining: number; advance_date: string; payment: { document_number: string | null } | null }>)
     .filter((a) => a.currency_code === "TZS" || fxAllowed)
     .map((a) => ({ id: a.id, supplier_id: a.supplier_id, currency_code: a.currency_code, fc_remaining: Number(a.fc_remaining), label: `Advance ${a.payment?.document_number ?? ""} (${a.advance_date})` }));

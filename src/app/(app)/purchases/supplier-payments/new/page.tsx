@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { branchPaymentOptions } from "@/lib/payment-methods";
 import { isFeatureEnabled } from "@/lib/features";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -54,8 +55,7 @@ export default async function NewSupplierPaymentPage(props: { searchParams: SP }
     if (purchaseId && row.purchase_id === purchaseId) initialSupplierId = s.id;
   }
 
-  const { data: accounts } = await admin.from("payment_accounts").select("id, name, branch_id").eq("company_id", ctx.companyId).eq("is_active", true).order("code");
-  const branchAccounts = (accounts ?? []).filter((a) => !a.branch_id || a.branch_id === ctx.branchId);
+  const branchAccounts = await branchPaymentOptions(ctx.companyId, ctx.branchId);
 
   return (
     <div>

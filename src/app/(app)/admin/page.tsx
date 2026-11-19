@@ -66,7 +66,7 @@ const GROUPS: Group[] = [
     title: "Finance",
     items: [
       { label: "Tax Codes", href: "/admin/tax-codes", description: "VAT & tax configuration", icon: Percent },
-      { label: "Payment Accounts", href: "/admin/payment-accounts", description: "Cash, bank & mobile money", icon: Wallet },
+      { label: "Payment Methods & Banks", href: "/admin/payment-methods", description: "Cash, banks & mobile money; assigned per branch", icon: Wallet },
       { label: "Chart of Accounts", href: "/admin/chart-of-accounts", description: "General-ledger accounts", icon: BookText },
       { label: "Other Income Types", href: "/admin/other-income-types", description: "Income categories", icon: Coins },
       { label: "Expense Categories", href: "/admin/expense-categories", description: "Expense categories", icon: Receipt },

@@ -176,7 +176,7 @@ export function PurchaseForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
           <Card><CardContent className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
             <div className="space-y-1.5"><Label>Supplier <span className="text-destructive">*</span></Label>
