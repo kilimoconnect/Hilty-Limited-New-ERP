@@ -12,6 +12,7 @@ const REPORTS: { href: string; title: string; desc: string; perm: string }[] = [
   { href: "/reports/sales-summary", title: "Sales Summary", desc: "Sales by day, branch, salesperson, category or payment method", perm: "reports.view_sales" },
   { href: "/reports/purchase-summary", title: "Purchase Summary", desc: "Purchases by day, branch, supplier, category or payment account", perm: "reports.view_purchases" },
   { href: "/reports/item-activity", title: "Item Activity", desc: "One product: every sale and purchase, and its stock", perm: "reports.view_sales" },
+  { href: "/reports/stock-movements", title: "Stock Movements", desc: "Transfers between branches and stock adjustments", perm: "inventory.view" },
   { href: "/reports/top-items", title: "Top Items & Slow Movers", desc: "Best sellers, and stock that is not selling", perm: "reports.view_sales" },
   { href: "/reports/profit-and-loss", title: "Profit & Loss", desc: "Revenue, cost of sales and expenses", perm: "reports.view_profit_loss" },
   { href: "/reports/balance-sheet", title: "Balance Sheet", desc: "Assets, liabilities and equity as of a date", perm: "reports.view_balance_sheet" },
