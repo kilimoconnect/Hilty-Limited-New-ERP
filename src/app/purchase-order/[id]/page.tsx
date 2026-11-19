@@ -30,10 +30,7 @@ export default async function PurchaseOrderPrintPage(props: { params: Params }) 
   if (!o || o.company_id !== companyId || o.status === "draft" || o.status === "cancelled") notFound();
   if (!user.isOwner && !user.branchIds.includes(o.branch_id)) notFound();
 
-  const [{ data: company }, { data: by }] = await Promise.all([
-    admin.from("companies").select("name, legal_name, address, phone, email").eq("id", companyId).single(),
-    o.confirmed_by ? admin.from("user_profiles").select("full_name").eq("id", o.confirmed_by).maybeSingle() : Promise.resolve({ data: null }),
-  ]);
+  const { data: company } = await admin.from("companies").select("name, legal_name, address, phone, email").eq("id", companyId).single();
   const sup = o.supplier as { code: string; name: string; phone: string | null; email: string | null; address: string | null; tin: string | null } | null;
   const br = o.branch as { name: string; code: string; address: string | null; phone: string | null; email: string | null } | null;
   const lines = ((o.lines ?? []) as Array<{ id: string; quantity: number; note: string | null; line_no: number; description: string | null; product: { sku: string; name: string; unit: { symbol: string | null } | null } | null }>)
@@ -111,12 +108,6 @@ export default async function PurchaseOrderPrintPage(props: { params: Params }) 
 
       {o.notes && <div className="mb-6 rounded border border-stone-200 p-3 text-sm"><p className="font-semibold">Notes</p><p className="whitespace-pre-wrap text-stone-700">{o.notes}</p></div>}
 
-      <p className="text-xs text-stone-600">Please supply the items above and quote the order number <span className="font-mono">{o.document_number}</span> on your delivery note and invoice. Prices are as agreed on your invoice.</p>
-
-      <div className="mt-14 grid grid-cols-2 gap-10 text-sm">
-        <div><div className="border-t border-stone-400 pt-1">Prepared / approved by{by?.full_name ? `: ${by.full_name}` : ""}</div></div>
-        <div><div className="border-t border-stone-400 pt-1">Supplier acknowledgement</div></div>
-      </div>
 
       <div className="no-print mt-8 flex justify-center gap-3"><PrintButton /></div>
       <p className="no-print mt-2 text-center text-xs text-stone-500">To send a PDF, choose “Save as PDF” as the printer.</p>
