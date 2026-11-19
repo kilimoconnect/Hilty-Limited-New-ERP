@@ -30,7 +30,8 @@ export default async function ItemActivityPage(props: { searchParams: Promise<SP
   const branch = str(sp, "branch");
   const productId = str(sp, "product");
   const branches = reportBranches(ctx, branch);
-  const showCost = can(ctx.user, "sales.view_cost") || can(ctx.user, "inventory.view_cost");
+  // Cost of sales and gross profit are for the Owner only.
+  const showCost = ctx.user.isOwner;
   const showPurchases = can(ctx.user, "reports.view_purchases");
   const admin = createAdminClient();
 

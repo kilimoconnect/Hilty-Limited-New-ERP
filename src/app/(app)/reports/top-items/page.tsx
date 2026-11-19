@@ -28,8 +28,10 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
   const { start, end } = reportPeriod(sp, addDays(todayISO(), -29));
   const branch = str(sp, "branch");
   const view = str(sp, "view") === "slow" ? "slow" : "top";
-  const showCost = can(ctx.user, "sales.view_cost") || can(ctx.user, "inventory.view_cost");
-  const sorts = showCost ? ["revenue", "qty", "profit"] : ["revenue", "qty"];
+  // Gross profit is for the Owner only; stock value follows the inventory-cost permission.
+  const showProfit = ctx.user.isOwner;
+  const showStockValue = can(ctx.user, "inventory.view_cost");
+  const sorts = showProfit ? ["revenue", "qty", "profit"] : ["revenue", "qty"];
   const sort = sorts.includes(str(sp, "sort")) ? str(sp, "sort") : "revenue";
   const page = pageOf(sp), size = pageSizeOf(sp);
   const branches = reportBranches(ctx, branch);
@@ -46,19 +48,19 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
   const totalRevenue = all.reduce((a, r) => a + N(r.revenue), 0);
   const unsold = all.filter((r) => N(r.stock_qty) > 0 && N(r.qty_sold) === 0);
 
-  const csv = list.map((r, i) => [i + 1, r.sku, r.name, r.category ?? "", N(r.qty_sold), N(r.revenue), ...(showCost ? [N(r.profit)] : []),
-    N(r.stock_qty), ...(showCost ? [N(r.stock_value)] : []), r.last_sale ?? "", r.last_sale ? daysBetween(r.last_sale, end) : ""]);
+  const csv = list.map((r, i) => [i + 1, r.sku, r.name, r.category ?? "", N(r.qty_sold), N(r.revenue), ...(showProfit ? [N(r.profit)] : []),
+    N(r.stock_qty), ...(showStockValue ? [N(r.stock_value)] : []), r.last_sale ?? "", r.last_sale ? daysBetween(r.last_sale, end) : ""]);
 
   return (
     <div>
       <PageHeader title="Top Items & Slow Movers" description="Which products sell best in the period, and which sit in stock without selling."
         actions={<div className="flex gap-2"><PrintButton /><ExportCsvButton filename={`${view === "top" ? "top-items" : "slow-movers"}-${start}-to-${end}.csv`}
-          header={["Rank", "SKU", "Product", "Category", "Qty sold", "Sales (net)", ...(showCost ? ["Gross profit"] : []), "On hand", ...(showCost ? ["Stock value"] : []), "Last sale", "Days since sale"]} rows={csv} /></div>} />
+          header={["Rank", "SKU", "Product", "Category", "Qty sold", "Sales (net)", ...(showProfit ? ["Gross profit"] : []), "On hand", ...(showStockValue ? ["Stock value"] : []), "Last sale", "Days since sale"]} rows={csv} /></div>} />
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <PeriodFilter start={start} end={end} />
         <ParamSelect param="view" value={view === "slow" ? "slow" : ""} placeholder="Top items" options={[{ id: "slow", label: "Slow movers" }]} />
         {view === "top" && <ParamSelect param="sort" value={sort === "revenue" ? "" : sort} placeholder="Rank by sales value"
-          options={[{ id: "qty", label: "Rank by quantity" }, ...(showCost ? [{ id: "profit", label: "Rank by profit" }] : [])]} />}
+          options={[{ id: "qty", label: "Rank by quantity" }, ...(showProfit ? [{ id: "profit", label: "Rank by profit" }] : [])]} />}
         <ParamSelect param="branch" value={branch} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
           options={ctx.branches.map((b) => ({ id: b.id, label: `${b.code} - ${b.name}` }))} />
       </div>
@@ -67,7 +69,7 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
         <Card className="p-4"><p className="text-xs text-muted-foreground">Products sold</p><p className="text-lg font-semibold tabular-nums">{all.filter((r) => N(r.qty_sold) > 0).length}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">Sales (net of VAT)</p><p className="text-lg font-semibold tabular-nums">{formatMoney(totalRevenue)}</p></Card>
         <Card className="p-4"><p className="text-xs text-muted-foreground">In stock, not sold in period</p><p className="text-lg font-semibold tabular-nums">{unsold.length}</p></Card>
-        {showCost && <Card className="p-4"><p className="text-xs text-muted-foreground">Value of that stock</p><p className="text-lg font-semibold tabular-nums">{formatMoney(unsold.reduce((a, r) => a + N(r.stock_value), 0))}</p></Card>}
+        {showStockValue && <Card className="p-4"><p className="text-xs text-muted-foreground">Value of that stock</p><p className="text-lg font-semibold tabular-nums">{formatMoney(unsold.reduce((a, r) => a + N(r.stock_value), 0))}</p></Card>}
       </div>
 
       {rows.length === 0 ? <EmptyState title={view === "top" ? "No sales in this period" : "No stock on hand"} /> : (
@@ -77,8 +79,8 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
               <TableHead className="w-12 text-right">#</TableHead><TableHead>Product</TableHead>
               <TableHead className="text-right">Qty sold</TableHead><TableHead className="text-right">Sales (net)</TableHead>
               {view === "top" && <TableHead className="text-right">Share</TableHead>}
-              {showCost && <TableHead className="text-right">Gross profit</TableHead>}
-              <TableHead className="text-right">On hand</TableHead>{showCost && <TableHead className="text-right">Stock value</TableHead>}
+              {showProfit && <TableHead className="text-right">Gross profit</TableHead>}
+              <TableHead className="text-right">On hand</TableHead>{showStockValue && <TableHead className="text-right">Stock value</TableHead>}
               <TableHead>Last sale</TableHead>
             </TableRow></TableHeader>
             <TableBody>
@@ -94,9 +96,9 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
                     <TableCell className="text-right tabular-nums">{N(r.qty_sold) ? formatQuantity(r.qty_sold) : <span className="text-muted-foreground">0</span>}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatMoney(N(r.revenue))}</TableCell>
                     {view === "top" && <TableCell className="text-right tabular-nums text-muted-foreground">{totalRevenue ? `${((N(r.revenue) / totalRevenue) * 100).toFixed(1)}%` : "—"}</TableCell>}
-                    {showCost && <TableCell className="text-right tabular-nums">{formatMoney(N(r.profit))}</TableCell>}
+                    {showProfit && <TableCell className="text-right tabular-nums">{formatMoney(N(r.profit))}</TableCell>}
                     <TableCell className="text-right tabular-nums">{formatQuantity(r.stock_qty)}</TableCell>
-                    {showCost && <TableCell className="text-right tabular-nums">{formatMoney(N(r.stock_value))}</TableCell>}
+                    {showStockValue && <TableCell className="text-right tabular-nums">{formatMoney(N(r.stock_value))}</TableCell>}
                     <TableCell className="whitespace-nowrap text-sm">{r.last_sale ? <>{formatDate(r.last_sale)} <span className="text-xs text-muted-foreground">({idle} d)</span></> : <span className="text-muted-foreground">never</span>}</TableCell>
                   </TableRow>
                 );

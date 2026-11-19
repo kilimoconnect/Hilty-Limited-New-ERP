@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
-import { getActiveContext, can } from "@/lib/context";
+import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flattenProducts } from "@/lib/products";
 import { PageHeader } from "@/components/ui/page-header";
@@ -46,7 +46,7 @@ export default async function NewSalePage() {
         accounts={branchAccounts as never}
         customers={(customers ?? []) as never}
         stock={stock}
-        canViewCost={can(ctx.user, "sales.view_cost")}
+        canViewCost={ctx.user.isOwner}
         walkInId={walkIn?.id ?? null}
       />
     </div>

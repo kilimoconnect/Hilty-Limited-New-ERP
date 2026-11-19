@@ -20,7 +20,8 @@ export default async function SaleDetailPage(props: { params: Params }) {
   const ctx = await getActiveContext();
   const { id } = await props.params;
   const admin = createAdminClient();
-  const showCost = can(ctx.user, "sales.view_cost");
+  // Cost of sales and gross profit are for the Owner only.
+  const showCost = ctx.user.isOwner;
 
   const { data: sale } = await admin.from("sales")
     .select("*, customer:customers(code,name,phone,address,tin), branch:branches(name,code)")

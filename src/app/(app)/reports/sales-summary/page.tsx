@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
-import { getActiveContext, can } from "@/lib/context";
+import { getActiveContext } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { selectAll } from "@/lib/supabase/batch";
 import { reportBranches, reportPeriod } from "@/lib/reports/scope";
@@ -30,7 +30,8 @@ export default async function SalesSummaryPage(props: { searchParams: Promise<SP
   const { start, end } = reportPeriod(sp);
   const branch = str(sp, "branch");
   const by = GROUPS.some((g) => g.id === str(sp, "by")) ? str(sp, "by") : "day";
-  const showCost = can(ctx.user, "sales.view_cost") || can(ctx.user, "inventory.view_cost");
+  // Cost of sales and gross profit are for the Owner only.
+  const showCost = ctx.user.isOwner;
   const branches = reportBranches(ctx, branch);
 
   const rows = branches && branches.length === 0 ? [] : await selectAll<Row>(() => createAdminClient().rpc("report_sales_summary", {

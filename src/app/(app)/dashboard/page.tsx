@@ -46,7 +46,8 @@ export default async function DashboardPage(props: { searchParams: Promise<SP> }
   const admin = createAdminClient();
   const companyId = ctx.companyId;
   const sp = await props.searchParams;
-  const showSalesCost = can(user, "sales.view_cost");
+  // Cost of sales and gross profit are for the Owner only.
+  const showSalesCost = user.isOwner;
   const showInvCost = can(user, "inventory.view_cost");
   const showBal = can(user, "cash_accounts.view_balance");
 
@@ -156,8 +157,9 @@ export default async function DashboardPage(props: { searchParams: Promise<SP> }
     const overdueAr = ara.buckets.d1_30 + ara.buckets.d31_60 + ara.buckets.d61_90 + ara.buckets.d90;
     const overdueAp = apa.buckets.d1_30 + apa.buckets.d31_60 + apa.buckets.d61_90 + apa.buckets.d90;
     fin = [
-      { label: "Revenue", value: formatMoney(pl.netSales) }, { label: "Gross profit", value: formatMoney(pl.grossProfit) },
-      { label: "Net profit", value: formatMoney(pl.netProfit) }, { label: "VAT payable / (refund)", value: formatMoney(vat.netVat) },
+      { label: "Revenue", value: formatMoney(pl.netSales) },
+      ...(showSalesCost ? [{ label: "Gross profit", value: formatMoney(pl.grossProfit) }, { label: "Net profit", value: formatMoney(pl.netProfit) }] : []),
+      { label: "VAT payable / (refund)", value: formatMoney(vat.netVat) },
       { label: "Accounts receivable", value: formatMoney(ara.total) }, { label: "Overdue receivables", value: formatMoney(overdueAr) },
       { label: "Accounts payable", value: formatMoney(apa.total) }, { label: "Overdue payables", value: formatMoney(overdueAp) },
     ];
