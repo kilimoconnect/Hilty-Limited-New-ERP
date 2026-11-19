@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DocStatusBadge, PayStatusBadge } from "@/components/common/doc-status-badge";
 import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
+import { isFeatureEnabled } from "@/lib/features";
+import { AttachmentsPanel } from "@/components/common/attachments-panel";
 
 export const metadata: Metadata = { title: "Expense" };
 type Params = Promise<{ id: string }>;
@@ -47,6 +49,9 @@ export default async function ExpenseDetail(props: { params: Params }) {
           {e.description && <p className="mt-3 text-sm text-muted-foreground">{e.description}</p>}
         </CardContent></Card>
       </div>
+      {(await isFeatureEnabled(ctx.companyId, "attachments")) && (
+        <div className="mt-4"><AttachmentsPanel ownerType="expense" ownerId={id} categories={["receipt", "other"]} /></div>
+      )}
     </div>
   );
 }

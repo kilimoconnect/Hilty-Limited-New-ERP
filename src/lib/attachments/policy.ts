@@ -12,6 +12,8 @@ export const SIGNED_URL_TTL_SECONDS = 60;
 export const OWNER_TYPES = [
   "import_shipment", "import_receipt", "cost_invoice", "purchase",
   "stock_transfer", "stock_transfer_receipt", "rebag_order", "stock_transfer_dispatch",
+  // receipts and slips (migration 0039)
+  "expense", "cash_transfer",
 ] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
@@ -20,6 +22,8 @@ export const CATEGORIES = [
   "delivery_note", "proof_of_delivery", "photo", "other",
   // transfer cargo file (Stage 6)
   "driver_licence", "cargo_papers", "loading_photo", "weighbridge_ticket", "transport_invoice", "signed_delivery_note", "offloading_photo",
+  // expense receipts and cash-transfer slips (migration 0039)
+  "receipt", "deposit_slip",
 ] as const;
 export type AttachmentCategory = (typeof CATEGORIES)[number];
 
@@ -40,6 +44,7 @@ export const CATEGORY_LABEL: Record<AttachmentCategory, string> = {
   cost_invoice: "Cost invoice", delivery_note: "Delivery note", proof_of_delivery: "Proof of delivery", photo: "Photo", other: "Other",
   driver_licence: "Driver licence", cargo_papers: "Cargo papers / B/L", loading_photo: "Loading photo", weighbridge_ticket: "Weighbridge ticket",
   transport_invoice: "Transport invoice", signed_delivery_note: "Signed delivery note", offloading_photo: "Offloading photo",
+  receipt: "Receipt", deposit_slip: "Deposit slip",
 };
 
 /** Only inert document / image types; nothing a browser would execute (no HTML, SVG, scripts). */

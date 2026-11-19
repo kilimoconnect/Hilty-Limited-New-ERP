@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requirePermissionPage } from "@/lib/auth/guards";
-import { getActiveContext } from "@/lib/context";
+import { getActiveContext, can } from "@/lib/context";
+import { isFeatureEnabled } from "@/lib/features";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,18 +16,19 @@ export default async function NewExpensePage() {
   if (!ctx.branchId) return <div><PageHeader title="Record Expense" /><EmptyState title="No active branch" /></div>;
 
   const [{ data: categories }, { data: suppliers }, { data: taxCodes }, { data: accounts }] = await Promise.all([
-    admin.from("expense_categories").select("id, code, name").eq("company_id", ctx.companyId).eq("is_active", true).order("code"),
+    admin.from("expense_categories").select("id, code, name, description").eq("company_id", ctx.companyId).eq("is_active", true).order("name"),
     admin.from("suppliers").select("id, code, name").eq("company_id", ctx.companyId).eq("is_active", true).order("code"),
     admin.from("tax_codes").select("id, name, rate, is_inclusive").eq("company_id", ctx.companyId).eq("is_active", true).order("code"),
     admin.from("payment_accounts").select("id, name, branch_id").eq("company_id", ctx.companyId).eq("is_active", true).order("code"),
   ]);
   const branchAccounts = (accounts ?? []).filter((a) => !a.branch_id || a.branch_id === ctx.branchId);
+  const receiptsOn = (await isFeatureEnabled(ctx.companyId, "attachments")) && can(ctx.user, "documents.upload");
 
   return (
     <div>
-      <PageHeader title="Record Expense" description="Operating expenses. Do not use this for inventory purchases." />
+      <PageHeader title="Record Expense" description="Petty cash and other operating expenses. Do not use this for stock purchases." />
       <ExpenseForm branchId={ctx.branchId} categories={(categories ?? []) as never} suppliers={(suppliers ?? []) as never}
-        taxCodes={(taxCodes ?? []).map((t) => ({ ...t, rate: Number(t.rate) })) as never} accounts={branchAccounts as never} />
+        taxCodes={(taxCodes ?? []).map((t) => ({ ...t, rate: Number(t.rate) })) as never} accounts={branchAccounts as never} receiptsOn={receiptsOn} />
     </div>
   );
 }

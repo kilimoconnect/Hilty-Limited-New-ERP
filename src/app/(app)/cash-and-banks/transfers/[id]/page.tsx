@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
+import { isFeatureEnabled } from "@/lib/features";
+import { AttachmentsPanel } from "@/components/common/attachments-panel";
 
 export const metadata: Metadata = { title: "Transfer" };
 type Params = Promise<{ id: string }>;
@@ -37,6 +39,9 @@ export default async function TransferDetail(props: { params: Params }) {
         {v.description && <p className="text-muted-foreground">{v.description}</p>}
         {v.void_reason && <div className="flex justify-between"><span className="text-muted-foreground">Void reason</span><span>{v.void_reason}</span></div>}
       </CardContent></Card>
+      {(await isFeatureEnabled(ctx.companyId, "attachments")) && (
+        <div className="mt-4"><AttachmentsPanel ownerType="cash_transfer" ownerId={id} categories={["deposit_slip", "other"]} /></div>
+      )}
     </div>
   );
 }
