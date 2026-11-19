@@ -27,7 +27,10 @@ export function BranchSelector({
 }) {
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
-  const [value, setValue] = React.useState(activeBranchId ?? undefined);
+  // Follows the active branch (it can also change on a create page's branch step);
+  // `picked` only holds the user's choice while it is being saved.
+  const [picked, setPicked] = React.useState<{ id: string; from: string | null } | null>(null);
+  const value = (picked && picked.from === activeBranchId ? picked.id : activeBranchId) ?? undefined;
 
   if (branches.length === 0) {
     return (
@@ -36,14 +39,14 @@ export function BranchSelector({
   }
 
   async function onChange(next: string) {
-    setValue(next);
+    setPicked({ id: next, from: activeBranchId });
     setPending(true);
     try {
       await setActiveBranch(next);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not switch branch");
-      setValue(activeBranchId ?? undefined);
+      setPicked(null);
     } finally {
       setPending(false);
     }

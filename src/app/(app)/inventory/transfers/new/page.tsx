@@ -4,14 +4,21 @@ import { getActiveContext, can } from "@/lib/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isFeatureEnabled } from "@/lib/features";
 import { PageHeader } from "@/components/ui/page-header";
+import { branchStep } from "@/lib/branch-step";
+import { BranchChoice, ChosenBranch } from "@/components/layout/branch-choice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NewTransferForm } from "./new-transfer-form";
 
 export const metadata: Metadata = { title: "New Transfer" };
 
-export default async function NewTransferPage() {
+export default async function NewTransferPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePermissionPage("inventory.transfer_create");
-  const ctx = await getActiveContext();
+  const base = await getActiveContext();
+  const step = branchStep(base, await props.searchParams);
+  if (step.choose) return <BranchChoice title="New Transfer" branches={base.branches} current={base.branchId} />;
+  const ctx = step.ctx;
+  const branch = ctx.branches.find((b) => b.id === ctx.branchId);
+  const many = ctx.branches.length > 1;
   const admin = createAdminClient();
   const [{ data: products }, { data: categories }, logistics, { data: companyBranches }] = await Promise.all([
     admin.from("products").select("id, sku, name").eq("company_id", ctx.companyId).eq("is_active", true).order("sku"),
@@ -26,7 +33,7 @@ export default async function NewTransferPage() {
   return (
     <div>
       <PageHeader title="New Transfer"
-        description="Goods, truck and driver, and the loading, transport and other charges for this move. Charges are added to the cost of the goods at the receiving branch; offloading is entered when the goods are received." />
+        description={<><ChosenBranch branch={branch} canChange={many} /> (sending) · Goods, truck and driver, and the loading, transport and other charges for this move. Charges are added to the cost of the goods at the receiving branch; offloading is entered when the goods are received.</>} />
       {!ctx.branchId || myBranches.length === 0 ? <EmptyState title="Choose a branch first" /> : (
         <NewTransferForm
           products={(products ?? []) as never}

@@ -22,7 +22,7 @@ export interface ProductOpt {
   category: string | null; brand: string | null;
 }
 export interface TaxOpt { id: string; name: string; rate: number; is_inclusive: boolean }
-export interface AccountOpt { id: string; name: string }
+export interface AccountOpt { id: string; name: string; code?: string }
 export interface SupplierOpt { id: string; code: string; name: string; phone?: string | null; payment_terms_days?: number | null }
 export interface CurrencyOpt { code: string; name: string }
 export interface TableRate { currency: string; date: string; rate: number }
@@ -128,7 +128,7 @@ export function PurchaseForm({
     if (valid.length === 0) missing.push("Add at least one product line with a quantity.");
     if (post && valid.some((l) => l.unit_cost.trim() === "")) missing.push("Enter the unit cost on every line.");
     if (isFc && !(fxRate > 0)) missing.push(`Exchange rate required (TZS per 1 ${currency}).`);
-    if (effMode !== "credit" && !accountId) missing.push("Choose the account the payment is made from.");
+    if (effMode !== "credit" && !accountId) missing.push("Choose the payment method.");
     if (effMode === "partial" && !(paid > 0)) missing.push("Enter the amount paid now.");
     if (effMode === "partial" && paid >= totals.grand - advTotal) missing.push("A partial payment must be less than the total; choose Paid Now instead.");
     if (post && outstanding > 0 && !dueDate) missing.push("Due date required for the unpaid balance.");
@@ -178,12 +178,14 @@ export function PurchaseForm({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          <Card><CardContent className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+          <Card><CardContent className="space-y-4 p-5">
             <div className="space-y-1.5"><Label>Supplier <span className="text-destructive">*</span></Label>
-              <SearchSelect value={supplierId} onChange={chooseSupplier} disabled={!!order}
-                placeholder="Search supplier by name/phone" emptyText="No supplier found — add a new one"
-                options={suppliers.map((s) => ({ id: s.id, label: s.name, hint: s.phone || s.code, search: `${s.code} ${s.phone ?? ""}` }))} /></div>
-            <Button type="button" variant="outline" onClick={() => setNewSupplier(true)} disabled={!!order}><Plus className="h-4 w-4" /> New Supplier</Button>
+              <div className="flex gap-2">
+                <SearchSelect className="min-w-0 flex-1" value={supplierId} onChange={chooseSupplier} disabled={!!order}
+                  placeholder="Search supplier by name/phone" emptyText="No supplier found — add a new one"
+                  options={suppliers.map((s) => ({ id: s.id, label: s.name, hint: s.phone || s.code, search: `${s.code} ${s.phone ?? ""}` }))} />
+                <Button type="button" variant="outline" className="shrink-0" onClick={() => setNewSupplier(true)} disabled={!!order}><Plus className="h-4 w-4" /> New Supplier</Button>
+              </div></div>
             <div className="space-y-1.5"><Label htmlFor="pur-bill">Supplier Bill/Ref</Label>
               <Input id="pur-bill" placeholder="Supplier invoice or delivery note no." value={invNo} onChange={(e) => setInvNo(e.target.value)} /></div>
           </CardContent></Card>
@@ -254,14 +256,19 @@ export function PurchaseForm({
                   ))}
                 </div>
                 {mode !== "credit" && (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5"><Label>Paid from <span className="text-destructive">*</span></Label>
-                      <Select value={accountId} onValueChange={setAccountId}><SelectTrigger><SelectValue placeholder="Select account…" /></SelectTrigger>
-                        <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select></div>
-                    {mode === "partial"
-                      ? <div className="space-y-1.5"><Label htmlFor="pur-part">Amount paid now <span className="text-destructive">*</span></Label>
-                          <Input id="pur-part" type="number" min="0" step="0.01" className="text-right tabular-nums" value={partAmount} onChange={(e) => setPartAmount(e.target.value)} /></div>
-                      : <div className="space-y-1.5"><Label>Amount</Label><p className="pt-2 text-right font-medium tabular-nums">{formatMoney(paid)}</p></div>}
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pay with">
+                      {accounts.map((a) => (
+                        <button key={a.id} type="button" role="radio" aria-checked={accountId === a.id} onClick={() => setAccountId(a.id)} title={a.name}
+                          className={`min-w-[72px] rounded-md border px-3 py-2 text-sm font-semibold transition-colors ${accountId === a.id ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted/50"}`}>
+                          {a.code ?? a.name}
+                        </button>
+                      ))}
+                    </div>
+                    {mode === "partial" && (
+                      <div className="max-w-xs space-y-1.5"><Label htmlFor="pur-part">Amount paid now <span className="text-destructive">*</span></Label>
+                        <Input id="pur-part" type="number" min="0" step="0.01" className="text-right tabular-nums" value={partAmount} onChange={(e) => setPartAmount(e.target.value)} /></div>
+                    )}
                   </div>
                 )}
               </>
@@ -334,7 +341,7 @@ export function PurchaseForm({
             <div className="my-1 border-t border-border" />
             <Row label="Grand Total" value={formatMoney(totals.grand)} bold />
             {advTotal > 0 && <Row label="Advances applied" value={formatMoney(advTotal)} />}
-            {!isFc && <Row label="Paid now" value={formatMoney(paid)} />}
+            {!isFc && <Row label="Paying" value={formatMoney(paid)} />}
             <Row label="AP Created" value={formatMoney(Math.max(outstanding, 0))} bold />
             {isFc && fxRate > 0 && (
               <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-2 text-xs">

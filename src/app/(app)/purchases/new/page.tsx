@@ -11,6 +11,8 @@ import { expireOrders } from "@/lib/purchases/order-actions";
 import { addDays } from "@/lib/reports/scope";
 import { todayISO } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
+import { branchStep } from "@/lib/branch-step";
+import { BranchChoice, ChosenBranch } from "@/components/layout/branch-choice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { PurchaseForm, type AdvanceOpt, type OrderPrefill } from "./purchase-form";
@@ -21,15 +23,20 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function NewPurchasePage(props: { searchParams: SP }) {
   await requirePermissionPage("purchases.create");
-  const ctx = await getActiveContext();
+  const base = await getActiveContext();
   const sp = await props.searchParams;
   const admin = createAdminClient();
-  if (!ctx.branchId) return <div><PageHeader title="Create Purchase" /><EmptyState title="No active branch" /></div>;
-  const branch = ctx.branches.find((b) => b.id === ctx.branchId);
+  let ctx = base;
 
-  // Receiving against a purchase order?
+  // Receiving against a purchase order: the order's branch. Otherwise users with
+  // several branches choose the branch first.
   const orderId = typeof sp.order === "string" ? sp.order : null;
   let order: OrderPrefill | undefined;
+  if (!orderId) {
+    const step = branchStep(base, sp);
+    if (step.choose) return <BranchChoice title="Create Purchase" branches={base.branches} current={base.branchId} />;
+    ctx = step.ctx;
+  }
   if (orderId) {
     await expireOrders(ctx.companyId);
     const { data: po } = await admin.from("purchase_orders")
@@ -37,13 +44,16 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
       .eq("id", orderId).maybeSingle();
     const pending = po && po.company_id === ctx.companyId && ["confirmed", "partially_received"].includes(po.status);
     if (!pending) return <div><PageHeader title="Create Purchase" /><EmptyState title="This purchase order is not pending" description="It may have been received in full, closed, or removed after 30 days." /></div>;
-    if (po.branch_id !== ctx.branchId) {
-      const b = ctx.branches.find((x) => x.id === po.branch_id);
-      return <div><PageHeader title="Create Purchase" /><EmptyState title={`Switch to ${b ? `${b.code} — ${b.name}` : "the order's branch"} to receive this order`} description="Goods are received at the branch that ordered them." /></div>;
+    if (!base.branches.some((x) => x.id === po.branch_id)) {
+      return <div><PageHeader title="Create Purchase" /><EmptyState title="This order belongs to a branch you do not work in" description="Goods are received at the branch that ordered them." /></div>;
     }
+    ctx = { ...base, branchId: po.branch_id };
     const lines = ((po.lines ?? []) as { product_id: string; quantity: number; qty_received: number; line_no: number }[]).sort((a, b) => a.line_no - b.line_no);
     order = { id: po.id, number: po.document_number ?? "", supplierId: po.supplier_id, lines: lines.map((l) => ({ product_id: l.product_id, ordered: Number(l.quantity), received: Number(l.qty_received) })) };
   }
+
+  if (!ctx.branchId) return <div><PageHeader title="Create Purchase" /><EmptyState title="No active branch" /></div>;
+  const branch = ctx.branches.find((b) => b.id === ctx.branchId);
 
   const fxAllowed = !order && can(ctx.user, "fx.enter_rate") && await isFeatureEnabled(ctx.companyId, "fx_settlement");
 
@@ -78,7 +88,7 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
   return (
     <div>
       <PageHeader title={order ? "Receive Purchase Order" : "Create Purchase"}
-        description={`Branch: ${branch ? `${branch.code} — ${branch.name}` : "—"}`}
+        description={<ChosenBranch branch={branch} canChange={!order && base.branches.length > 1} />}
         actions={<div className="flex gap-2">
           {!order && can(ctx.user, "purchases.order") && <Button asChild variant="outline" size="sm"><Link href="/purchases/orders">Purchase orders</Link></Button>}
           <Button asChild variant="outline" size="sm"><Link href="/purchases/history">Purchases History</Link></Button>

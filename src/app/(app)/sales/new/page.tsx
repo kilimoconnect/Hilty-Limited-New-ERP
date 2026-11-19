@@ -5,14 +5,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { branchPaymentOptions } from "@/lib/payment-methods";
 import { flattenProducts } from "@/lib/products";
 import { PageHeader } from "@/components/ui/page-header";
+import { branchStep } from "@/lib/branch-step";
+import { BranchChoice } from "@/components/layout/branch-choice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SaleForm } from "./sale-form";
 
 export const metadata: Metadata = { title: "Create Sale" };
 
-export default async function NewSalePage() {
+export default async function NewSalePage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePermissionPage("sales.create");
-  const ctx = await getActiveContext();
+  const base = await getActiveContext();
+  const step = branchStep(base, await props.searchParams);
+  if (step.choose) return <BranchChoice title="Create Sale" branches={base.branches} current={base.branchId} />;
+  const ctx = step.ctx;
+  const branch = ctx.branches.find((b) => b.id === ctx.branchId);
+  const many = ctx.branches.length > 1;
   const admin = createAdminClient();
 
   if (!ctx.branchId) {
@@ -36,7 +43,6 @@ export default async function NewSalePage() {
   // Weighted average cost is shown to the Owner only (like gross profit).
   const wac: Record<string, number> = {};
   for (const b of bals ?? []) { stock[b.product_id] = Number(b.quantity); if (ctx.user.isOwner) wac[b.product_id] = Number(b.avg_unit_cost); }
-  const branch = ctx.branches.find((b) => b.id === ctx.branchId);
   const walkIn = (customers ?? []).find((c) => c.is_protected);
 
   return (
@@ -45,6 +51,7 @@ export default async function NewSalePage() {
       <SaleForm
         branchId={ctx.branchId}
         branchLabel={branch ? `${branch.code} — ${branch.name}` : ""}
+        canChangeBranch={many}
         wac={wac}
         products={flattenProducts(products)}
         taxCodes={(taxCodes ?? []).map((t) => ({ ...t, rate: Number(t.rate) })) as never}

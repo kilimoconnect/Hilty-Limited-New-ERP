@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductPicker } from "@/components/common/product-picker";
 import { SearchSelect } from "@/components/common/search-select";
+import { ChosenBranch } from "@/components/layout/branch-choice";
 
 export interface ProductOpt {
   id: string; sku: string; barcode: string | null; name: string; selling_price: number; tax_code_id: string | null;
@@ -46,9 +47,9 @@ function Clock() {
  * can be posted; for a walk-in that means paid = total.
  */
 export function SaleForm({
-  branchId, branchLabel, products, taxCodes, accounts, customers, stock, wac, canViewCost, walkInId,
+  branchId, branchLabel, canChangeBranch = false, products, taxCodes, accounts, customers, stock, wac, canViewCost, walkInId,
 }: {
-  branchId: string; branchLabel: string; products: ProductOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[];
+  branchId: string; branchLabel: string; canChangeBranch?: boolean; products: ProductOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[];
   customers: CustomerOpt[]; stock: Record<string, number>; wac: Record<string, number>; canViewCost: boolean; walkInId: string | null;
 }) {
   const router = useRouter();
@@ -141,14 +142,14 @@ export function SaleForm({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">Branch: <span className="font-medium text-foreground">{branchLabel}</span> · <Clock /></p>
+          <p className="text-sm text-muted-foreground"><ChosenBranch branch={{ code: branchLabel.split(" — ")[0] ?? "", name: branchLabel.split(" — ")[1] ?? "" }} canChange={canChangeBranch} /> · <Clock /></p>
           <div className="flex items-end gap-3">
             <div className="space-y-1.5"><Label htmlFor="sale-date">Date</Label>
               <Input id="sale-date" type="date" className="w-44" value={date} onChange={(e) => setDate(e.target.value)} /></div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm"><Link href="/sales/new" onClick={() => { setLines([]); setPaid({}); }}>Create New Sale</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link href={`/sales/new?branch=${branchId}`} onClick={() => { setLines([]); setPaid({}); }}>Create New Sale</Link></Button>
           <Button asChild variant="outline" size="sm"><Link href="/sales/history">Sales History</Link></Button>
           {postButton}
         </div>
