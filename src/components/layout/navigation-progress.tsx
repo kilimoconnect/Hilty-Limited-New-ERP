@@ -151,12 +151,29 @@ function ProgressInner() {
 
   return (
     <>
-      {snap.pill && (
-        <div className="pointer-events-none fixed left-1/2 top-3 z-[200] -translate-x-1/2 hl-fade-in">
-          <LoadingPill text={snap.pill} />
-        </div>
-      )}
+      {snap.pill && <Pill text={snap.pill} />}
     </>
+  );
+}
+
+/** A section loader that is actually on screen (React may keep hidden ones in the page). */
+function sectionLoaderShowing(): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>("[data-hl-section]")).some((el) => el.getClientRects().length > 0);
+}
+
+/** The top pill. One loader at a time: it steps aside while a section loader is on screen. */
+function Pill({ text }: { text: string }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const sync = () => { if (ref.current) ref.current.style.display = sectionLoaderShowing() ? "none" : ""; };
+    sync();
+    const t = window.setInterval(sync, 60);
+    return () => window.clearInterval(t);
+  }, []);
+  return (
+    <div ref={ref} className="pointer-events-none fixed left-1/2 top-3 z-[200] -translate-x-1/2">
+      <LoadingPill text={text} />
+    </div>
   );
 }
 

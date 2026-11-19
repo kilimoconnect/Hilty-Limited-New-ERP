@@ -73,7 +73,7 @@ export function FullScreenLoader({ className }: { className?: string }) {
 /** Loader for a page section or card (design "Compact", 64 / 32). */
 export function SectionLoader({ size = 56, label = "LOADING", className }: { size?: 56 | 28; label?: string; className?: string }) {
   return (
-    <div role="status" aria-live="polite" aria-label="Loading" className={cn("flex flex-col items-center justify-center gap-4 py-16", className)}>
+    <div role="status" aria-live="polite" aria-label="Loading" data-hl-section className={cn("flex flex-col items-center justify-center gap-4 py-16", className)}>
       <HiltyMark size={size} />
       <LoadingLabel text={label} className="text-[#4A5373] dark:text-[#B4BCD4]" />
     </div>
