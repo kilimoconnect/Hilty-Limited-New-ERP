@@ -1,5 +1,6 @@
 "use server";
 
+import { postingDateError, roleLimits, backdateError, discountError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertBranchAccess } from "@/lib/auth/guards";
@@ -222,6 +223,16 @@ export async function postSale(saleId: string): Promise<RpcResult> {
       }
     }
 
+    // Role limits: back-dating window and largest discount below list price.
+    const limits = await roleLimits(user);
+    const dateErr = backdateError(limits, sale.document_date);
+    if (dateErr) return { ok: false, error: dateErr };
+    if (limits.maxDiscountPct !== null) {
+      const { data: dl } = await admin.from("sale_lines").select("quantity, unit_price, original_price, discount, description").eq("sale_id", saleId);
+      const discErr = discountError(limits, (dl ?? []) as { quantity: number; unit_price: number; original_price: number | null; discount: number; description: string | null }[]);
+      if (discErr) return { ok: false, error: discErr };
+    }
+
     const res = await callPostingRpc("post_sale", { p_id: saleId, p_user: user.id, p_idem: randomUUID() });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: sale.branch_id, action: "sale.post", resourceType: "sale", resourceId: saleId });
@@ -282,6 +293,7 @@ export async function createAndPostReturn(input: {
     const ctx = await getActiveContext();
     if (!input.reason?.trim()) return { ok: false, error: "A reason is required." };
     if (input.lines.length === 0) return { ok: false, error: "Select at least one line to return." };
+    { const dateErr = await postingDateError(user, input.returnDate); if (dateErr) return { ok: false, error: dateErr }; }
 
     const admin = createAdminClient();
     const { data: sale } = await admin.from("sales").select("*").eq("id", input.saleId).maybeSingle();

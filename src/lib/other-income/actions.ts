@@ -1,5 +1,6 @@
 "use server";
 
+import { storedDateError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertBranchAccess } from "@/lib/auth/guards";
@@ -86,6 +87,7 @@ export async function postOtherIncome(id: string): Promise<RpcResult> {
     const { data: oi } = await admin.from("other_income_transactions").select("branch_id, company_id").eq("id", id).maybeSingle();
     if (!oi || oi.company_id !== ctx.companyId) return { ok: false, error: "Not found." };
     assertBranchAccess(user, oi.branch_id);
+    { const dateErr = await storedDateError(user, "other_income_transactions", "document_date", id); if (dateErr) return { ok: false, error: dateErr }; }
     const res = await callPostingRpc("post_other_income", { p_id: id, p_user: user.id, p_idem: randomUUID() });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: oi.branch_id, action: "other_income.post", resourceType: "other_income", resourceId: id });

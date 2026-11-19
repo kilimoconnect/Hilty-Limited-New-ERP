@@ -47,6 +47,7 @@ export const NAV: NavEntry[] = [
       { label: "Create Sale", href: "/sales/new", enabled: true, requires: "sales.create" },
       { label: "Sales History", href: "/sales/history", enabled: true, requires: "sales.view" },
       { label: "Customer Payments", href: "/sales/customer-payments", enabled: true, requires: "sales.view" },
+      { label: "Daily Cash-up", href: "/reports/cash-up", enabled: true, requires: "reports.view_cashup" },
     ],
   },
   {
@@ -144,6 +145,11 @@ export const NAV: NavEntry[] = [
     enabled: true,
     requires: "reports.view",
     items: [
+      { label: "Daily Cash-up", href: "/reports/cash-up", enabled: true, requires: "reports.view_cashup" },
+      { label: "Sales Summary", href: "/reports/sales-summary", enabled: true, requires: "reports.view_sales" },
+      { label: "Purchase Summary", href: "/reports/purchase-summary", enabled: true, requires: "reports.view_purchases" },
+      { label: "Item Activity", href: "/reports/item-activity", enabled: true, requires: "reports.view_sales" },
+      { label: "Top Items & Slow Movers", href: "/reports/top-items", enabled: true, requires: "reports.view_sales" },
       { label: "Profit & Loss", href: "/reports/profit-and-loss", enabled: true, requires: "reports.view_profit_loss" },
       { label: "Balance Sheet", href: "/reports/balance-sheet", enabled: true, requires: "reports.view_balance_sheet" },
       { label: "Cash Flow", href: "/reports/cash-flow", enabled: true, requires: "reports.view_cash_flow" },

@@ -1,5 +1,6 @@
 "use server";
 
+import { postingDateError, storedDateError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertBranchAccess } from "@/lib/auth/guards";
@@ -207,6 +208,7 @@ export async function postPurchase(id: string): Promise<RpcResult> {
     if (!pur || pur.company_id !== ctx.companyId) return { ok: false, error: "Purchase not found." };
     assertBranchAccess(user, pur.branch_id);
     // Stable per-document key: a retried post is a replay, never a second posting.
+    { const dateErr = await storedDateError(user, "purchases", "document_date", id); if (dateErr) return { ok: false, error: dateErr }; }
     const res = await callPostingRpc("post_purchase", { p_id: id, p_user: user.id, p_idem: `post_purchase:${id}` });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: pur.branch_id, action: "purchase.post", resourceType: "purchase", resourceId: id });
@@ -258,6 +260,7 @@ export async function createAndPostPurchaseReturn(input: {
     const ctx = await getActiveContext();
     if (!input.reason?.trim()) return { ok: false, error: "A reason is required." };
     if (input.lines.length === 0) return { ok: false, error: "Select at least one line." };
+    { const dateErr = await postingDateError(user, input.returnDate); if (dateErr) return { ok: false, error: dateErr }; }
     const admin = createAdminClient();
     const { data: pur } = await admin.from("purchases").select("*").eq("id", input.purchaseId).maybeSingle();
     if (!pur || pur.company_id !== ctx.companyId) return { ok: false, error: "Purchase not found." };
@@ -342,6 +345,7 @@ export async function createAndPostSupplierPayment(input: {
     assertPermission(user, "purchases.record_payment");
     const ctx = await getActiveContext();
     assertBranchAccess(user, input.branchId);
+    { const dateErr = await postingDateError(user, input.documentDate); if (dateErr) return { ok: false, error: dateErr }; }
     const admin = createAdminClient();
     const currency = input.currencyCode ?? "TZS";
     const isFc = currency !== "TZS";

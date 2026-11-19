@@ -1,5 +1,6 @@
 "use server";
 
+import { postingDateError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertBranchAccess } from "@/lib/auth/guards";
@@ -24,6 +25,7 @@ export async function createAndPostReceipt(input: {
     assertPermission(user, "sales.receive_payment");
     const ctx = await getActiveContext();
     assertBranchAccess(user, input.branchId);
+    { const dateErr = await postingDateError(user, input.documentDate); if (dateErr) return { ok: false, error: dateErr }; }
 
     if (!(input.amount > 0)) return { ok: false, error: "Amount must be greater than zero." };
     const allocTotal = round2(input.allocations.reduce((s, a) => s + (a.amount || 0), 0));

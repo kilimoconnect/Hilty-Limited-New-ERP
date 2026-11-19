@@ -1,5 +1,6 @@
 "use server";
 
+import { storedDateError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertBranchAccess } from "@/lib/auth/guards";
@@ -79,6 +80,7 @@ export async function createOpeningDraft(input: {
 export async function postOpening(id: string): Promise<RpcResult> {
   try {
     const { user, ctx } = await guard("inventory.opening_balance");
+    { const dateErr = await storedDateError(user, "inventory_openings", "opening_date", id); if (dateErr) return { ok: false, error: dateErr }; }
     const res = await callPostingRpc("post_inventory_opening", {
       p_id: id, p_user: user.id, p_idem: randomUUID(),
     });
@@ -161,6 +163,7 @@ export async function createAdjustmentDraft(input: {
 export async function postAdjustment(id: string): Promise<RpcResult> {
   try {
     const { user, ctx } = await guard("inventory.adjustment_post");
+    { const dateErr = await storedDateError(user, "stock_adjustments", "adjustment_date", id); if (dateErr) return { ok: false, error: dateErr }; }
     const res = await callPostingRpc("post_stock_adjustment", { p_id: id, p_user: user.id, p_idem: randomUUID() });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, companyId: ctx.companyId, action: "inventory.adjustment_post", resourceType: "stock_adjustment", resourceId: id });
@@ -246,6 +249,7 @@ export async function dispatchTransfer(id: string): Promise<RpcResult> {
     const user = await assertActiveUser();
     assertPermission(user, "inventory.transfer_dispatch");
     // Stable key: a double click or retry replays the first dispatch (branch checked in the database).
+    { const dateErr = await storedDateError(user, "stock_transfers", "transfer_date", id); if (dateErr) return { ok: false, error: dateErr }; }
     const res = await callPostingRpc("dispatch_stock_transfer", { p_id: id, p_user: user.id, p_idem: `dispatch_stock_transfer:${id}` });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, action: "inventory.transfer_dispatch", resourceType: "stock_transfer", resourceId: id });

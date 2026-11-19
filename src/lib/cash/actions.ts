@@ -1,5 +1,6 @@
 "use server";
 
+import { storedDateError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertOwner } from "@/lib/auth/guards";
@@ -65,6 +66,14 @@ export async function postTransfer(id: string): Promise<RpcResult> {
   try {
     const user = await assertActiveUser();
     assertPermission(user, "cash_transfers.post");
+    { const dateErr = await storedDateError(user, "cash_transfers", "transfer_date", id); if (dateErr) return { ok: false, error: dateErr }; }
+    if (!user.isOwner) {
+      const { data: t } = await createAdminClient().from("cash_transfers")
+        .select("src:payment_accounts!cash_transfers_source_account_id_fkey(branch_id), dst:payment_accounts!cash_transfers_destination_account_id_fkey(branch_id)")
+        .eq("id", id).maybeSingle();
+      const tills = [t?.src, t?.dst].map((a) => (a as unknown as { branch_id: string | null } | null)?.branch_id).filter(Boolean) as string[];
+      if (tills.some((b) => !user.branchIds.includes(b))) return { ok: false, error: "You can only move money between tills of your own branch(es)." };
+    }
     const res = await callPostingRpc("post_cash_transfer", { p_id: id, p_user: user.id, p_idem: randomUUID() });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, action: "cash_transfer.post", resourceType: "cash_transfer", resourceId: id });

@@ -8,6 +8,11 @@ import { Card, CardContent } from "@/components/ui/card";
 export const metadata: Metadata = { title: "Financial Reports" };
 
 const REPORTS: { href: string; title: string; desc: string; perm: string }[] = [
+  { href: "/reports/cash-up", title: "Daily Cash-up", desc: "Each branch till by day: in, out, banked, expected and counted", perm: "reports.view_cashup" },
+  { href: "/reports/sales-summary", title: "Sales Summary", desc: "Sales by day, branch, salesperson, category or payment method", perm: "reports.view_sales" },
+  { href: "/reports/purchase-summary", title: "Purchase Summary", desc: "Purchases by day, branch, supplier, category or payment account", perm: "reports.view_purchases" },
+  { href: "/reports/item-activity", title: "Item Activity", desc: "One product: every sale and purchase, and its stock", perm: "reports.view_sales" },
+  { href: "/reports/top-items", title: "Top Items & Slow Movers", desc: "Best sellers, and stock that is not selling", perm: "reports.view_sales" },
   { href: "/reports/profit-and-loss", title: "Profit & Loss", desc: "Revenue, cost of sales and expenses", perm: "reports.view_profit_loss" },
   { href: "/reports/balance-sheet", title: "Balance Sheet", desc: "Assets, liabilities and equity as of a date", perm: "reports.view_balance_sheet" },
   { href: "/reports/cash-flow", title: "Cash Flow", desc: "Cash movements by activity", perm: "reports.view_cash_flow" },

@@ -1,5 +1,6 @@
 "use server";
 
+import { storedDateError, roleLimits, pettyCashError } from "@/lib/auth/limits";
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { assertActiveUser, assertPermission, assertBranchAccess } from "@/lib/auth/guards";
@@ -92,6 +93,16 @@ export async function postExpense(id: string): Promise<RpcResult> {
     const { data: ex } = await admin.from("expenses").select("branch_id, company_id").eq("id", id).maybeSingle();
     if (!ex || ex.company_id !== ctx.companyId) return { ok: false, error: "Expense not found." };
     assertBranchAccess(user, ex.branch_id);
+    { const dateErr = await storedDateError(user, "expenses", "document_date", id); if (dateErr) return { ok: false, error: dateErr }; }
+    {
+      const limits = await roleLimits(user);
+      if (limits.pettyCashCap !== null) {
+        const { data: exp } = await admin.from("expenses").select("grand_total, payments:expense_payments(account:payment_accounts(account_type))").eq("id", id).maybeSingle();
+        const pays = ((exp?.payments ?? []) as unknown as { account: { account_type: string } | null }[]);
+        const capErr = pettyCashError(limits, Number(exp?.grand_total ?? 0), pays.some((p) => p.account?.account_type === "cash"));
+        if (capErr) return { ok: false, error: capErr };
+      }
+    }
     const res = await callPostingRpc("post_expense", { p_id: id, p_user: user.id, p_idem: randomUUID() });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: ex.branch_id, action: "expense.post", resourceType: "expense", resourceId: id });

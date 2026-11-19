@@ -13,7 +13,7 @@ export default async function RolesPage() {
   const [{ data: roles }, { data: perms }, { data: rp }] = await Promise.all([
     admin
       .from("roles")
-      .select("id, code, name, description, is_protected")
+      .select("id, code, name, description, is_protected, backdate_days, max_discount_pct, petty_cash_cap")
       .order("is_protected", { ascending: false })
       .order("name"),
     admin.from("permissions").select("code, resource, action").order("resource"),

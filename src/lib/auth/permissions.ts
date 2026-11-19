@@ -101,6 +101,11 @@ export const ACTIONS = [
   "settle",
   "revalue",
   "enter_rate",
+  // Cash-up and operational reports (0038)
+  "count_cash",
+  "view_sales",
+  "view_purchases",
+  "view_cashup",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -144,7 +149,7 @@ export const PERMISSION_DEFS: PermissionDef[] = [
   ...p("other_income", TXN_ACTIONS),
   ...p("expenses", TXN_ACTIONS),
   ...p("cash_transfers", TXN_ACTIONS),
-  ...p("cash_accounts", ["view", "view_balance", "view_ledger", "opening_balance"]),
+  ...p("cash_accounts", ["view", "view_balance", "view_ledger", "opening_balance", "count_cash"]),
   ...p("inventory", [
     "view", "create", "edit_draft", "post", "export", "manage",
     "view_cost", "view_kardex", "opening_balance",
@@ -156,6 +161,7 @@ export const PERMISSION_DEFS: PermissionDef[] = [
     "view", "export",
     "view_profit_loss", "view_balance_sheet", "view_cash_flow", "view_vat",
     "view_receivables", "view_payables", "view_inventory_valuation",
+    "view_sales", "view_purchases", "view_cashup",
   ]),
   ...p("accounting", [
     "view", "view_journals", "create_manual_journal", "post_manual_journal",
@@ -215,7 +221,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "other_income.view", "other_income.create", "other_income.edit_draft", "other_income.post", "other_income.approve", "other_income.export",
       "expenses.view", "expenses.create", "expenses.edit_draft", "expenses.post", "expenses.approve", "expenses.export",
       "cash_transfers.view", "cash_transfers.create", "cash_transfers.edit_draft", "cash_transfers.post", "cash_transfers.approve", "cash_transfers.export",
-      "cash_accounts.view", "cash_accounts.view_balance", "cash_accounts.view_ledger",
+      "cash_accounts.view", "cash_accounts.view_balance", "cash_accounts.view_ledger", "cash_accounts.count_cash",
       "inventory.view", "inventory.create", "inventory.edit_draft", "inventory.post", "inventory.manage", "inventory.export",
       "inventory.view_cost", "inventory.view_kardex",
       "inventory.adjustment_create", "inventory.adjustment_post",
@@ -223,6 +229,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "kardex.view", "kardex.export",
       "reports.view", "reports.export",
       "reports.view_profit_loss", "reports.view_receivables", "reports.view_payables", "reports.view_inventory_valuation",
+      "reports.view_sales", "reports.view_purchases", "reports.view_cashup",
       "periods.view",
       "imports.view", "imports.create", "imports.edit_draft", "imports.post", "imports.receive", "imports.approve",
       "imports.view_cost", "imports.finalize_cost",
@@ -247,12 +254,13 @@ export const ROLE_DEFS: RoleDef[] = [
       "other_income.view", "other_income.create", "other_income.edit_draft", "other_income.post",
       "expenses.view", "expenses.create", "expenses.edit_draft", "expenses.post",
       "cash_transfers.view", "cash_transfers.create", "cash_transfers.edit_draft", "cash_transfers.post",
-      "cash_accounts.view", "cash_accounts.view_balance", "cash_accounts.view_ledger",
+      "cash_accounts.view", "cash_accounts.view_balance", "cash_accounts.view_ledger", "cash_accounts.count_cash",
       "inventory.view", "inventory.view_cost", "inventory.view_kardex",
       "kardex.view", "kardex.export",
       "reports.view", "reports.export",
       "reports.view_profit_loss", "reports.view_balance_sheet", "reports.view_cash_flow",
       "reports.view_vat", "reports.view_receivables", "reports.view_payables", "reports.view_inventory_valuation",
+      "reports.view_sales", "reports.view_purchases", "reports.view_cashup",
       "accounting.view", "accounting.view_journals", "accounting.create_manual_journal",
       "accounting.view_general_ledger", "accounting.view_trial_balance", "accounting.view_control_accounts", "accounting.export",
       "reconciliation.view", "reconciliation.create", "reconciliation.import_statement", "reconciliation.match", "reconciliation.finalize",
@@ -272,6 +280,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "dashboard.view",
       "sales.view", "sales.create", "sales.edit_draft", "sales.post", "sales.receive_payment",
       "inventory.view", "inventory.view_kardex", "kardex.view",
+      "reports.view_cashup", "cash_accounts.count_cash",
     ],
   },
   {
@@ -308,6 +317,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "reports.view", "reports.export",
       "reports.view_profit_loss", "reports.view_balance_sheet", "reports.view_cash_flow",
       "reports.view_vat", "reports.view_receivables", "reports.view_payables", "reports.view_inventory_valuation",
+      "reports.view_sales", "reports.view_purchases", "reports.view_cashup",
       "accounting.view", "accounting.view_journals", "accounting.view_general_ledger",
       "accounting.view_trial_balance", "accounting.view_control_accounts", "accounting.export",
       "imports.view", "imports.view_cost", "cost_invoices.view", "rebagging.view",

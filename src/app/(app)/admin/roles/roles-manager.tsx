@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { RoleLimits } from "./role-limits";
 
 export interface RoleRow {
   id: string;
@@ -16,6 +17,9 @@ export interface RoleRow {
   name: string;
   description: string | null;
   is_protected: boolean;
+  backdate_days: number | null;
+  max_discount_pct: number | null;
+  petty_cash_cap: number | null;
 }
 export interface PermRow {
   code: string;
@@ -128,6 +132,8 @@ export function RolesManager({
                   be modified.
                 </p>
               )}
+
+              {!isOwner && <RoleLimits key={selected.id} roleId={selected.id} values={selected} />}
 
               <div className="space-y-5">
                 {grouped.map(([resource, perms]) => (
