@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ChevronDown } from "lucide-react";
 import { createTransferWithTrip } from "@/lib/transfers/actions";
 import { todayISO } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,25 @@ import { StockLineEditor, newLine, type ProductOption, type StockLine } from "@/
 import { ChargeRows, newCharge, parseCharges, type ChargeCategory, type ChargeRow } from "@/components/inventory/charge-rows";
 
 type Branch = { id: string; name: string; code: string };
+
+/** A card that starts closed; the header shows what is filled in so far. */
+function OptionalSection({ title, summary, children }: { title: string; summary?: string; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Card><CardContent className="p-0">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-muted/40">
+        <span>
+          <span className="font-semibold">{title}</span>
+          <span className="ml-2 text-xs text-muted-foreground">optional</span>
+          {!open && summary && <span className="mt-0.5 block text-xs text-muted-foreground">{summary}</span>}
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="space-y-4 px-5 pb-5">{children}</div>}
+    </CardContent></Card>
+  );
+}
 const rid = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-transfer`);
 
 export function NewTransferForm({
@@ -50,8 +70,8 @@ export function NewTransferForm({
     if (dest === source) { setError("Sending and receiving branches must differ."); return; }
     const parsed = lines.filter((l) => l.product_id && Number(l.quantity) > 0).map((l) => ({ product_id: l.product_id, qty: Number(l.quantity) }));
     if (parsed.length === 0) { setError("Add at least one product line."); return; }
-    if (!tp.vehicleRegistration.trim() || !tp.driverName.trim()) { setError("Enter the truck registration and the driver's name."); return; }
-    const parsedCharges = parseCharges(charges);
+    // Rows that only carry a pre-selected charge type (no amount, no note) are ignored.
+    const parsedCharges = parseCharges(charges.filter((c) => c.amount.trim() || c.description.trim()));
     if (!parsedCharges) { setError("Each charge needs a type and an amount above zero (remove empty rows)."); return; }
     setPending(true);
     const res = await createTransferWithTrip({
@@ -95,13 +115,13 @@ export function NewTransferForm({
         <StockLineEditor products={products} lines={lines} setLines={setLines} showCost={false} qtyLabel="Qty to send" />
       </CardContent></Card>
 
-      <Card><CardContent className="space-y-4 p-5">
-        <h3 className="font-semibold">Truck and driver</h3>
+      <OptionalSection title="Truck and driver"
+        summary={[tp.vehicleRegistration, tp.driverName, tp.transporterName].map((v) => v.trim()).filter(Boolean).join(" · ") || undefined}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="space-y-1.5"><Label>Truck registration *</Label><Input value={tp.vehicleRegistration} onChange={setT("vehicleRegistration")} placeholder="e.g. T 123 ABC" /></div>
+          <div className="space-y-1.5"><Label>Truck registration</Label><Input value={tp.vehicleRegistration} onChange={setT("vehicleRegistration")} placeholder="e.g. T 123 ABC" /></div>
           <div className="space-y-1.5"><Label>Trailer registration</Label><Input value={tp.trailerRegistration} onChange={setT("trailerRegistration")} /></div>
           <div />
-          <div className="space-y-1.5"><Label>Driver name *</Label><Input value={tp.driverName} onChange={setT("driverName")} /></div>
+          <div className="space-y-1.5"><Label>Driver name</Label><Input value={tp.driverName} onChange={setT("driverName")} /></div>
           <div className="space-y-1.5"><Label>Driver phone</Label><Input type="tel" value={tp.driverPhone} onChange={setT("driverPhone")} placeholder="e.g. 0712 345 678" /></div>
           {canLicence
             ? <div className="space-y-1.5"><Label>Driving licence number</Label><Input value={tp.driverLicence} onChange={setT("driverLicence")} /></div>
@@ -110,19 +130,21 @@ export function NewTransferForm({
           <div className="space-y-1.5"><Label>Transporter phone / contact</Label><Input value={tp.transporterContact} onChange={setT("transporterContact")} /></div>
         </div>
         <p className="text-xs text-muted-foreground">Licence photos, loading photos and weighbridge tickets can be attached on the transfer after saving.</p>
-      </CardContent></Card>
+      </OptionalSection>
 
-      <Card><CardContent className="space-y-3 p-5">
+      <OptionalSection title="Transfer costs"
+        summary={(() => { const t = charges.reduce((a, c) => a + (Number(c.amount) || 0), 0); return t > 0 ? `TZS ${t.toLocaleString("en-US")}` : undefined; })()}>
         <div>
-          <h3 className="font-semibold">Transfer costs</h3>
           <p className="text-xs text-muted-foreground">Loading, transport and any other fees for this move. They are added to the inventory cost of these goods at the receiving branch (shared by weight). Offloading is entered when the goods are received.</p>
         </div>
         {chargesEnabled
           ? <ChargeRows categories={categories} rows={charges} setRows={setCharges} />
           : <p className="rounded-md bg-muted px-3 py-2 text-sm">Transfer costs need <strong>Transfer logistics</strong> switched on (Admin → Feature Flags).</p>}
-      </CardContent></Card>
+      </OptionalSection>
 
-      <Card><CardContent className="space-y-1.5 p-5"><Label>Notes</Label><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></CardContent></Card>
+      <OptionalSection title="Notes" summary={notes.trim() ? (notes.trim().length > 80 ? `${notes.trim().slice(0, 80)}...` : notes.trim()) : undefined}>
+        <Textarea aria-label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </OptionalSection>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}

@@ -182,7 +182,6 @@ export async function createTransferWithTrip(input: NewTransferInput): Promise<R
     if (input.dispatch && !(user.isOwner || user.permissions.has("inventory.transfer_dispatch"))) return { ok: false, error: "You are not allowed to dispatch transfers." };
     const lines = input.lines.filter((l) => l.product_id && l.qty > 0);
     if (lines.length === 0) return { ok: false, error: "Add at least one product line." };
-    if (!input.transport.vehicleRegistration?.trim() || !input.transport.driverName?.trim()) return { ok: false, error: "Enter the truck registration and the driver's name." };
     const chargeErr = await checkCharges(admin, ctx.companyId, input.charges);
     if (chargeErr) return { ok: false, error: chargeErr };
 
