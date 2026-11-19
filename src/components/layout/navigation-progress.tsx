@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { FullScreenLoader, LoadingPill } from "@/components/ui/hilty-loader";
+import { LoadingPill } from "@/components/ui/hilty-loader";
 
 /**
  * App-wide "it is loading" feedback for every click, using the Hilty loaders.
@@ -13,9 +13,8 @@ import { FullScreenLoader, LoadingPill } from "@/components/ui/hilty-loader";
  * their response has fully streamed covers every kind of click without
  * touching each button. Background prefetches are ignored.
  *
- *   - Opening another page            -> full-screen loader ("Main")
- *   - Filters, paging, refresh on the same page -> small pill "Loading…"
- *   - Buttons running a server action -> small pill "Working…"
+ *   - Opening a page, filters, paging, refresh -> small pill "Loading…"
+ *   - Buttons running a server action          -> small pill "Working…"
  *
  * Both appear only when the wait passes a short moment, so instant clicks do
  * not flash. The cursor shows progress meanwhile.
@@ -36,8 +35,8 @@ const store = (() => {
 
   const total = () => count.page + count.same + count.action;
   const target = (): Snapshot => ({
-    full: count.page > 0,
-    pill: count.page > 0 ? null : count.action > 0 ? "Working…" : count.same > 0 ? "Loading…" : null,
+    full: false,
+    pill: count.action > 0 ? "Working…" : count.page + count.same > 0 ? "Loading…" : null,
   });
   function publish(next: Snapshot) {
     if (next.full === snap.full && next.pill === snap.pill) return;
@@ -152,7 +151,6 @@ function ProgressInner() {
 
   return (
     <>
-      {snap.full && <FullScreenLoader className="hl-fade-in" />}
       {snap.pill && (
         <div className="pointer-events-none fixed left-1/2 top-3 z-[200] -translate-x-1/2 hl-fade-in">
           <LoadingPill text={snap.pill} />
