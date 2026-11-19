@@ -106,6 +106,8 @@ export const ACTIONS = [
   "view_sales",
   "view_purchases",
   "view_cashup",
+  // Purchase orders (0040)
+  "order",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -145,7 +147,7 @@ export const PERMISSION_DEFS: PermissionDef[] = [
     ...TXN_ACTIONS,
     "view_cost", "override_price", "sell_below_cost", "receive_payment", "create_return",
   ]),
-  ...p("purchases", [...TXN_ACTIONS, "view_cost", "record_payment", "create_return"]),
+  ...p("purchases", [...TXN_ACTIONS, "view_cost", "record_payment", "create_return", "order"]),
   ...p("other_income", TXN_ACTIONS),
   ...p("expenses", TXN_ACTIONS),
   ...p("cash_transfers", TXN_ACTIONS),
@@ -216,7 +218,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "dashboard.view",
       "sales.view", "sales.create", "sales.edit_draft", "sales.post", "sales.approve", "sales.export", "sales.void",
       "sales.view_cost", "sales.override_price", "sales.receive_payment", "sales.create_return",
-      "purchases.view", "purchases.create", "purchases.edit_draft", "purchases.post", "purchases.approve", "purchases.export", "purchases.void",
+      "purchases.view", "purchases.order", "purchases.create", "purchases.edit_draft", "purchases.post", "purchases.approve", "purchases.export", "purchases.void",
       "purchases.view_cost", "purchases.record_payment", "purchases.create_return",
       "other_income.view", "other_income.create", "other_income.edit_draft", "other_income.post", "other_income.approve", "other_income.export",
       "expenses.view", "expenses.create", "expenses.edit_draft", "expenses.post", "expenses.approve", "expenses.export",
@@ -249,7 +251,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "dashboard.view",
       "sales.view", "sales.create", "sales.edit_draft", "sales.post", "sales.export",
       "sales.view_cost", "sales.receive_payment",
-      "purchases.view", "purchases.create", "purchases.edit_draft", "purchases.post", "purchases.export",
+      "purchases.view", "purchases.order", "purchases.create", "purchases.edit_draft", "purchases.post", "purchases.export",
       "purchases.view_cost", "purchases.record_payment", "purchases.create_return",
       "other_income.view", "other_income.create", "other_income.edit_draft", "other_income.post",
       "expenses.view", "expenses.create", "expenses.edit_draft", "expenses.post",
@@ -295,7 +297,7 @@ export const ROLE_DEFS: RoleDef[] = [
       "inventory.view_kardex", "inventory.adjustment_create",
       "inventory.transfer_create", "inventory.transfer_dispatch", "inventory.transfer_receive",
       "kardex.view", "kardex.export",
-      "purchases.view", "purchases.create", "purchases.edit_draft", "purchases.post",
+      "purchases.view", "purchases.order", "purchases.create", "purchases.edit_draft", "purchases.post",
       "imports.view", "imports.receive", "rebagging.view", "rebagging.create", "rebagging.post",
       "inventory.transfer_view", "documents.upload",
     ],

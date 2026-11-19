@@ -72,6 +72,7 @@ export const NAV: NavEntry[] = [
     enabled: true,
     requires: "purchases.view",
     items: [
+      { label: "Purchase Orders", href: "/purchases/orders", enabled: true, requires: "purchases.view" },
       { label: "Create Purchase", href: "/purchases/new", enabled: true, requires: "purchases.create" },
       { label: "Purchase History", href: "/purchases/history", enabled: true, requires: "purchases.view" },
       { label: "Supplier Credits", href: "/purchases/supplier-credits", enabled: true, requires: "purchases.view" },

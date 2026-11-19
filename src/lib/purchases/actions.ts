@@ -34,6 +34,8 @@ export interface PurchaseDraftInput {
   rateReference?: string;
   /** Supplier advances (same supplier and currency) applied on posting. */
   advanceApplications?: { advance_id: string; fc_amount: number }[];
+  /** The confirmed purchase order these goods were delivered against. */
+  purchaseOrderId?: string | null;
 }
 
 /**
@@ -148,6 +150,15 @@ export async function savePurchaseDraft(input: PurchaseDraftInput): Promise<RpcR
     const { data: supRow } = await admin.from("suppliers").select("company_id").eq("id", input.supplierId).maybeSingle();
     if (!supRow || supRow.company_id !== ctx.companyId) return { ok: false, error: "Select a supplier of this company." };
 
+    // Goods delivered against a purchase order: same company, branch and supplier, still pending.
+    if (input.purchaseOrderId) {
+      const { data: po } = await admin.from("purchase_orders").select("company_id, branch_id, supplier_id, status").eq("id", input.purchaseOrderId).maybeSingle();
+      if (!po || po.company_id !== ctx.companyId) return { ok: false, error: "Purchase order not found." };
+      if (!["confirmed", "partially_received"].includes(po.status)) return { ok: false, error: "This purchase order is no longer pending." };
+      if (po.branch_id !== input.branchId) return { ok: false, error: "The purchase order belongs to another branch." };
+      if (po.supplier_id !== input.supplierId) return { ok: false, error: "The supplier differs from the purchase order." };
+    }
+
     const header = {
       company_id: ctx.companyId, branch_id: input.branchId, supplier_id: input.supplierId,
       document_date: input.documentDate, supplier_invoice_date: input.supplierInvoiceDate || null,
@@ -161,6 +172,7 @@ export async function savePurchaseDraft(input: PurchaseDraftInput): Promise<RpcR
       rate_source: isFc ? input.rateSource ?? "manual" : null, rate_reference: isFc ? input.rateReference || null : null,
       fc_subtotal: isFc ? totals.subtotal : 0, fc_tax_total: isFc ? totals.tax : 0, fc_grand_total: isFc ? totals.grand : 0,
       updated_by: user.id,
+      ...(input.purchaseOrderId !== undefined ? { purchase_order_id: input.purchaseOrderId || null } : {}),
     };
 
     let id = input.purchaseId ?? null;
@@ -447,5 +459,62 @@ export async function applySupplierCredit(input: {
       ["/purchases/history", "/purchases/supplier-payments", "/reports/supplier-statements"].forEach((p) => revalidatePath(p));
     }
     return res;
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Failed." }; }
+}
+
+/* ----------------------- Quick create from Create Purchase ----------------------- */
+async function nextCode(table: "suppliers" | "products", column: "code" | "sku", companyId: string, prefix: string) {
+  const { data } = await createAdminClient().from(table).select(column).eq("company_id", companyId).ilike(column, `${prefix}-%`);
+  const re = new RegExp(`^${prefix}-(\\d+)$`);
+  let max = 0;
+  for (const r of (data ?? []) as unknown as Record<string, string>[]) { const m = re.exec(r[column] ?? ""); if (m) max = Math.max(max, parseInt(m[1], 10)); }
+  return `${prefix}-${String(max + 1).padStart(4, "0")}`;
+}
+
+/** Adds a supplier while recording a purchase (name and phone; the rest can be completed in Admin). */
+export async function quickCreateSupplier(input: { name: string; phone?: string }): Promise<RpcResult & { code?: string }> {
+  try {
+    const user = await assertActiveUser();
+    assertPermission(user, "purchases.create");
+    const ctx = await getActiveContext();
+    const name = input.name.trim();
+    if (!name) return { ok: false, error: "Enter the supplier name." };
+    const admin = createAdminClient();
+    const { data: dup } = await admin.from("suppliers").select("id").eq("company_id", ctx.companyId).ilike("name", name).limit(1);
+    if (dup && dup.length) return { ok: false, error: "A supplier with this name already exists." };
+    const code = await nextCode("suppliers", "code", ctx.companyId, "SUP");
+    const { data, error } = await admin.from("suppliers").insert({
+      company_id: ctx.companyId, code, name, phone: input.phone?.trim() || null, created_by: user.id, updated_by: user.id,
+    }).select("id").single();
+    if (error) return { ok: false, error: error.message };
+    await writeAuditLog({ userId: user.id, companyId: ctx.companyId, action: "master.create", resourceType: "supplier", resourceId: data.id, newValues: { code, name } });
+    return { ok: true, id: data.id, code };
+  } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Failed." }; }
+}
+
+/** Adds a product while recording a purchase. */
+export async function quickCreateProduct(input: {
+  name: string; categoryId?: string | null; brandId?: string | null; unitId?: string | null; taxCodeId?: string | null;
+  sellingPrice?: number; supplierId?: string | null;
+}): Promise<RpcResult & { sku?: string }> {
+  try {
+    const user = await assertActiveUser();
+    assertPermission(user, "purchases.create");
+    const ctx = await getActiveContext();
+    const name = input.name.trim();
+    if (!name) return { ok: false, error: "Enter the product name." };
+    if (input.sellingPrice !== undefined && !(input.sellingPrice >= 0)) return { ok: false, error: "The selling price cannot be negative." };
+    const admin = createAdminClient();
+    const { data: dup } = await admin.from("products").select("id").eq("company_id", ctx.companyId).ilike("name", name).limit(1);
+    if (dup && dup.length) return { ok: false, error: "A product with this name already exists." };
+    const sku = await nextCode("products", "sku", ctx.companyId, "PRD");
+    const { data, error } = await admin.from("products").insert({
+      company_id: ctx.companyId, sku, name, category_id: input.categoryId || null, brand_id: input.brandId || null,
+      base_unit_id: input.unitId || null, tax_code_id: input.taxCodeId || null, selling_price: input.sellingPrice ?? 0,
+      preferred_supplier_id: input.supplierId || null, created_by: user.id, updated_by: user.id,
+    }).select("id").single();
+    if (error) return { ok: false, error: error.code === "23503" ? "A selected category, brand, unit or VAT code is invalid." : error.message };
+    await writeAuditLog({ userId: user.id, companyId: ctx.companyId, action: "master.create", resourceType: "product", resourceId: data.id, newValues: { sku, name } });
+    return { ok: true, id: data.id, sku };
   } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Failed." }; }
 }

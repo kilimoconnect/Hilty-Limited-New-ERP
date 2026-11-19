@@ -63,7 +63,8 @@ export type OptionSourceKey =
   | "units"
   | "branches"
   | "bulkProducts"
-  | "expenseAccounts";
+  | "expenseAccounts"
+  | "suppliers";
 
 export interface OptionSource {
   table: string;
@@ -93,6 +94,7 @@ export const OPTION_SOURCES: Record<OptionSourceKey, OptionSource> = {
     labelColumn: "name",
     where: { allow_posting: true, account_type: "expense" },
   },
+  suppliers: { table: "suppliers", labelColumn: "name" },
 };
 
 export interface ResourceConfig {
@@ -400,6 +402,7 @@ export const RESOURCES: Record<string, ResourceConfig> = {
       { name: "purchase_price", label: "Default Purchase Price", type: "money", min: 0, colSpan: 1, defaultValue: 0 },
       { name: "selling_price", label: "Default Selling Price", type: "money", min: 0, colSpan: 1, defaultValue: 0 },
       { name: "reorder_level", label: "Reorder Level", type: "quantity", min: 0, colSpan: 1, defaultValue: 0 },
+      { name: "preferred_supplier_id", label: "Preferred Supplier", type: "select", optionsKey: "suppliers", nullable: true, colSpan: 1 },
       { name: "track_inventory", label: "Track inventory", type: "switch", colSpan: 1, defaultValue: true },
       { name: "description", label: "Description", type: "textarea", colSpan: 2 },
     ],

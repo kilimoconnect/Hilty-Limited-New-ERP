@@ -75,6 +75,7 @@ const DOC_TYPES = [
   { type: "sales_return", prefix: "SRN" },
   { type: "purchase", prefix: "PUR" },
   { type: "purchase_return", prefix: "PRN" },
+  { type: "purchase_order", prefix: "PO" },
   { type: "expense", prefix: "EXP" },
   { type: "other_income", prefix: "OIN" },
   { type: "cash_transfer", prefix: "CTR" },
