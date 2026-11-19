@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 import { saveOtherIncomeDraft, postOtherIncome, type OtherIncomeDraftInput } from "@/lib/other-income/actions";
 import { round2 } from "@/lib/sales/calc";
 import { formatMoney, todayISO } from "@/lib/format";
@@ -16,8 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export interface RefOpt { id: string; code?: string; name: string }
 export interface TaxOpt { id: string; name: string; rate: number; is_inclusive: boolean }
-export interface AccountOpt { id: string; name: string }
-interface Receipt { key: string; payment_account_id: string; amount: string }
+export interface AccountOpt { id: string; name: string; code?: string }
 const NONE = "__none__";
 
 export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: string; types: RefOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[] }) {
@@ -29,7 +27,8 @@ export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: 
   const [amount, setAmount] = React.useState("");
   const [reference, setReference] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [receipts, setReceipts] = React.useState<Receipt[]>([{ key: "r1", payment_account_id: accounts[0]?.id ?? "", amount: "" }]);
+  // Split tender, as on Create Sale: an amount per payment method of the branch.
+  const [paid, setPaid] = React.useState<Record<string, string>>({});
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -40,17 +39,30 @@ export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: 
     if (tc.is_inclusive) { grand = round2(amt); net = round2(grand / (1 + tc.rate / 100)); tax = round2(grand - net); }
     else { net = round2(amt); tax = round2(net * tc.rate / 100); grand = round2(net + tax); }
   }
-  const received = round2(receipts.reduce((s, r) => s + Number(r.amount || 0), 0));
+  const received = round2(accounts.reduce((s, a) => s + Number(paid[a.id] || 0), 0));
+  const balance = round2(grand - received);
+  // Other income is fully received when posted: Post stays faint until it balances.
+  const blockers: string[] = [];
+  if (!typeId) blockers.push("Select an income type.");
+  if (!(amt > 0)) blockers.push("Enter the amount.");
+  if (amt > 0 && balance > 0.001) blockers.push("Income must be fully received. Allocate the amount across payment methods to balance.");
+  if (balance < -0.001) blockers.push(`Received ${formatMoney(-balance)} more than the total.`);
+  const canPost = blockers.length === 0;
+  function fillRest(accountId: string) {
+    const others = round2(accounts.filter((a) => a.id !== accountId).reduce((s, a) => s + Number(paid[a.id] || 0), 0));
+    const rest = round2(grand - others);
+    setPaid((p) => ({ ...p, [accountId]: rest > 0 ? String(rest) : "" }));
+  }
 
   async function submit(post: boolean) {
     setError(null);
     if (!typeId) { setError("Select an income type."); return; }
     if (!(amt > 0)) { setError("Enter an amount."); return; }
-    if (post && received !== grand) { setError("Receipts must equal the gross amount (fully received)."); return; }
+    if (post && !canPost) { setError(blockers[0]); return; }
     const input: OtherIncomeDraftInput = {
       branchId, incomeTypeId: typeId, receivedFrom, description, documentDate: date,
       taxCodeId: taxCodeId === NONE ? null : taxCodeId, amount: amt, reference,
-      receipts: receipts.filter((r) => r.payment_account_id && Number(r.amount) > 0).map((r) => ({ payment_account_id: r.payment_account_id, amount: Number(r.amount) })),
+      receipts: accounts.filter((a) => Number(paid[a.id] || 0) > 0).map((a) => ({ payment_account_id: a.id, amount: Number(paid[a.id]) })),
     };
     setPending(true);
     const res = await saveOtherIncomeDraft(input);
@@ -61,7 +73,7 @@ export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: 
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
       <div className="space-y-4">
         <Card><CardContent className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
           <div className="space-y-1.5"><Label>Income type *</Label>
@@ -77,29 +89,33 @@ export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: 
           <div className="space-y-1.5 sm:col-span-2"><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
         </CardContent></Card>
 
-        <Card><CardContent className="p-5">
-          <div className="mb-2 flex items-center justify-between"><Label>Received into</Label>
-            <Button type="button" variant="outline" size="sm" onClick={() => setReceipts([...receipts, { key: Math.random().toString(36).slice(2), payment_account_id: "", amount: "" }])}><Plus className="h-4 w-4" /> Add account</Button>
-          </div>
-          <div className="space-y-2">
-            {receipts.map((p) => (
-              <div key={p.key} className="flex items-center gap-2">
-                <Select value={p.payment_account_id} onValueChange={(v) => setReceipts(receipts.map((x) => x.key === p.key ? { ...x, payment_account_id: v } : x))}><SelectTrigger className="h-8 flex-1"><SelectValue placeholder="Account" /></SelectTrigger>
-                  <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select>
-                <Input className="h-8 w-32 text-right tabular-nums" type="number" min="0" step="0.01" value={p.amount} onChange={(e) => setReceipts(receipts.map((x) => x.key === p.key ? { ...x, amount: e.target.value } : x))} />
-                <button type="button" onClick={() => setReceipts(receipts.filter((x) => x.key !== p.key))} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-              </div>
-            ))}
-          </div>
+        <Card><CardContent className="space-y-3 p-5">
+          <h3 className="font-semibold">Payments (Split Tender)</h3>
+          {accounts.length === 0 ? <p className="text-sm text-muted-foreground">No payment methods are assigned to this branch (Admin → Payment Methods &amp; Banks).</p> : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {accounts.map((a) => (
+                <div key={a.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+                  <button type="button" onClick={() => fillRest(a.id)} className="w-20 shrink-0 text-left text-sm font-semibold hover:text-primary" title="Put the remaining balance here">{a.code ?? a.name}</button>
+                  <Input aria-label={`${a.name} amount`} className="h-8 text-right tabular-nums" type="number" min="0" step="0.01" placeholder="0.00"
+                    value={paid[a.id] ?? ""} onChange={(e) => setPaid((p) => ({ ...p, [a.id]: e.target.value }))} />
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground">Tip: click a method name to put the remaining balance on it.</p>
+          {amt > 0 && blockers.length > 0 && (
+            <ul className="space-y-1 rounded-md bg-warning/15 px-3 py-2 text-sm">{blockers.map((b) => <li key={b}>⚠ {b}</li>)}</ul>
+          )}
         </CardContent></Card>
       </div>
 
       <div><Card className="sticky top-20"><CardContent className="space-y-2 p-5 text-sm">
         <Row label="Net" value={formatMoney(net)} /><Row label="Tax" value={formatMoney(tax)} />
         <div className="my-1 border-t border-border" /><Row label="Total" value={formatMoney(grand)} bold /><Row label="Received" value={formatMoney(received)} />
+        <div className={`flex items-center justify-between font-semibold ${Math.abs(balance) <= 0.001 ? "" : "text-destructive"}`}><span>Balance</span><span className="tabular-nums">{formatMoney(balance)}</span></div>
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="flex flex-col gap-2 pt-2">
-          <Button onClick={() => submit(true)} disabled={pending}>{pending ? "Working..." : "Post income"}</Button>
+          <Button onClick={() => submit(true)} disabled={pending || !canPost} className="disabled:opacity-40" title={canPost ? undefined : blockers[0]}>{pending ? "Working..." : "Post (Save)"}</Button>
           <Button variant="outline" onClick={() => submit(false)} disabled={pending}>Save draft</Button>
         </div>
       </CardContent></Card></div>

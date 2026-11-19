@@ -47,7 +47,6 @@ export const NAV: NavEntry[] = [
       { label: "Create Sale", href: "/sales/new", enabled: true, requires: "sales.create" },
       { label: "Sales History", href: "/sales/history", enabled: true, requires: "sales.view" },
       { label: "Customer Payments", href: "/sales/customer-payments", enabled: true, requires: "sales.view" },
-      { label: "Daily Cash-up", href: "/reports/cash-up", enabled: true, requires: "reports.view_cashup" },
     ],
   },
   {
