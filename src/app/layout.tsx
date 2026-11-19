@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 
 const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"] });
 const plexMono = IBM_Plex_Mono({
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${archivo.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
+        <NavigationProgress />
         {children}
         <Toaster />
       </body>

@@ -132,3 +132,23 @@
   body { background: #fff !important; }
   .report-card { box-shadow: none !important; border: none !important; }
 }
+
+/* Something is loading (see components/layout/navigation-progress.tsx). */
+html.app-busy, html.app-busy * { cursor: progress !important; }
+/* Hilty loaders (components/ui/hilty-loader.tsx). */
+:root { --hl-dur: 1.6s; }
+@keyframes hl-grow { 0% { transform: scaleY(.12); } 30% { transform: scaleY(1); } 70% { transform: scaleY(1); } 100% { transform: scaleY(.12); } }
+@keyframes hl-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes hl-dot { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@keyframes hl-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.hl-shield { animation: hl-breathe var(--hl-dur) ease-in-out infinite; }
+.hl-bar { transform-origin: 50% 100%; animation: hl-grow var(--hl-dur) cubic-bezier(.22,1,.36,1) infinite; }
+.hl-b2 { animation-delay: calc(var(--hl-dur) * .12); }
+.hl-b3 { animation-delay: calc(var(--hl-dur) * .24); }
+.hl-dot { animation: hl-dot calc(var(--hl-dur) * .75) ease-in-out infinite; }
+.hl-d2 { animation-delay: calc(var(--hl-dur) * .15); }
+.hl-d3 { animation-delay: calc(var(--hl-dur) * .3); }
+.hl-fade-in { animation: hl-fade-in 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .hl-shield, .hl-bar, .hl-dot { animation-duration: calc(var(--hl-dur) * 3); }
+}
