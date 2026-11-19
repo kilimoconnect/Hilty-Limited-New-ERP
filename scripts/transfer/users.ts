@@ -5,6 +5,7 @@
  *
  *   npx tsx scripts/transfer/users.ts            (dry run: lists what it would do)
  *   npx tsx scripts/transfer/users.ts --commit
+ *   npx tsx scripts/transfer/users.ts --commit --only=someone@hilty.co.tz
  *
  * Logins that already exist in the new project (by email) are left alone; the
  * new Owner account keeps the password set for it. User profiles, roles and
@@ -14,6 +15,9 @@ import { createClient } from "@supabase/supabase-js";
 import { connectOld } from "./old-db";
 
 const commit = process.argv.includes("--commit");
+// --only=a@x,b@y limits the run to those emails (e.g. to restore one login).
+const onlyArg = process.argv.find((a) => a.startsWith("--only="));
+const only = onlyArg ? new Set(onlyArg.slice(7).split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)) : null;
 
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -40,6 +44,7 @@ async function main() {
   let created = 0;
   for (const u of rows) {
     const email = u.email.toLowerCase();
+    if (only && !only.has(email)) continue;
     if (existing.has(email)) {
       console.log(`  keep    ${email} (already in new project)`);
       continue;

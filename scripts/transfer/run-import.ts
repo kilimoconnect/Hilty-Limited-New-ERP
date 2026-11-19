@@ -30,6 +30,9 @@ const RESET_TABLES = [
   "inventory_opening_lines", "inventory_openings",
   "stock_movements", "stock_balances", "journal_lines", "journal_entries",
   "transaction_status_history", "idempotency_keys",
+  // Only the STOCK-ROUNDING correction (fix-sellout-residue.ts) may exist here;
+  // a re-import posts sell-outs exactly (migration 0037), so it is not needed.
+  "manual_journal_draft_lines", "manual_journal_drafts",
 ];
 
 async function resetPreviousImport(db: Client) {
@@ -40,8 +43,11 @@ async function resetPreviousImport(db: Client) {
     + (select count(*) from public.cash_transfers where id not in (select id from legacy.ops_cash_transfers))
     + (select count(*) from public.stock_transfers where id not in (select id from legacy.fin_transfers))
     + (select count(*) from public.inventory_openings where reference is distinct from 'Old system opening stock')
-    + (select count(*) from public.journal_entries where source_type not in
-        ('sale','purchase','expense','cash_transfer','inventory_opening','stock_transfer_dispatch','stock_transfer_receipt')) as n`);
+    + (select count(*) from public.manual_journal_drafts where reference is distinct from 'STOCK-ROUNDING')
+    + (select count(*) from public.journal_entries j where j.source_type not in
+        ('sale','purchase','expense','cash_transfer','inventory_opening','stock_transfer_dispatch','stock_transfer_receipt')
+        and not (j.source_type = 'manual_journal'
+                 and j.source_id in (select id from public.manual_journal_drafts where reference = 'STOCK-ROUNDING'))) as n`);
   if (Number(rows[0].n) > 0) {
     throw new Error(`${rows[0].n} document(s) were entered in the new system - refusing to reset.`);
   }
