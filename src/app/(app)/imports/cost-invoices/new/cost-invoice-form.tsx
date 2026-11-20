@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { followPageBranch, useBranchFollow } from "@/lib/branch-sync";
 
 export interface SourceOpt { id: string; categoryId: string; status: string; shipmentId: string; supplierId: string | null; label: string; estimate: number; accrued: number; actual: number }
 type Opt = { id: string; label: string };
@@ -28,6 +29,8 @@ export function CostInvoiceForm({ suppliers, branches, defaultBranchId, categori
   const router = useRouter();
   const [supplierId, setSupplierId] = React.useState("");
   const [branchId, setBranchId] = React.useState(defaultBranchId);
+  // The header branch and this picker stay in step.
+  useBranchFollow((id) => { if (branches.some((b) => b.id === id)) setBranchId(id); });
   const [kind, setKind] = React.useState<"invoice" | "credit_note">("invoice");
   const [credited, setCredited] = React.useState("");
   const [date, setDate] = React.useState(todayISO());
@@ -76,7 +79,7 @@ export function CostInvoiceForm({ suppliers, branches, defaultBranchId, categori
           <Select value={supplierId} onValueChange={(v) => { setSupplierId(v); setCredited(""); }}><SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
             <SelectContent>{suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-1.5"><Label>Branch</Label>
-          <Select value={branchId} onValueChange={setBranchId}><SelectTrigger><SelectValue /></SelectTrigger>
+          <Select value={branchId} onValueChange={(v) => { setBranchId(v); followPageBranch(v, router.refresh); }}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-1.5"><Label>Document</Label>
           <Select value={kind} onValueChange={(v) => { setKind(v as "invoice" | "credit_note"); setLines(lines.map((l) => ({ ...l, source: NONE }))); }}>

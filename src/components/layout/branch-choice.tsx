@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Building2, Check } from "lucide-react";
 import { setActiveBranch } from "@/lib/auth/actions";
+import { announceBranch } from "@/lib/branch-sync";
 import { PageHeader } from "@/components/ui/page-header";
 
 /** First step of a create page for users with several branches: pick the branch, then the page opens. */
@@ -23,6 +24,7 @@ export function BranchChoice({ title, branches, current }: {
     const p = new URLSearchParams(sp.toString());
     p.set("branch", id);
     router.push(`${pathname}?${p.toString()}`);
+    announceBranch(id);
     setActiveBranch(id).then(() => router.refresh()).catch((e) => toast.error(e instanceof Error ? e.message : "Could not switch the header branch."));
   }
 
@@ -53,8 +55,9 @@ export function ChosenBranch({ branch, canChange }: { branch: { code: string; na
   const p = new URLSearchParams(sp.toString());
   p.delete("branch");
   const q = p.toString();
+  // Marked so the header branch switch re-opens this page for the new branch (?branch=).
   return (
-    <span>
+    <span data-branch-filter="">
       Branch: <span className="font-medium text-foreground">{branch ? `${branch.code} — ${branch.name}` : "—"}</span>
       {canChange && <> · <Link href={`${pathname}${q ? `?${q}` : ""}`} className="underline hover:text-foreground">Change branch</Link></>}
     </span>

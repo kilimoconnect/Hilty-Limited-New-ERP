@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductPicker, type PickerProduct } from "@/components/common/product-picker";
 import { SearchSelect } from "@/components/common/search-select";
+import { followPageBranch, useBranchFollow } from "@/lib/branch-sync";
 
 type Opt = { id: string; name: string; hint?: string | null };
 interface Row extends SuggestionRow { key: string; qty: string; supplier: string }
@@ -61,6 +62,8 @@ export function OrderGenerator({ branches, defaultBranchId, suppliers, brands, c
   const [safety, setSafety] = React.useState("7");
   const [cover, setCover] = React.useState("30");
   const [rows, setRows] = React.useState<Row[] | null>(null);
+  // The header branch and this picker stay in step (a new branch needs a new calculation).
+  useBranchFollow((id) => { if (branches.some((b) => b.id === id)) { setBranchId(id); setRows(null); } });
   const [showAll, setShowAll] = React.useState(false);
   const [expected, setExpected] = React.useState("");
   const [notes, setNotes] = React.useState("");
@@ -143,7 +146,7 @@ export function OrderGenerator({ branches, defaultBranchId, suppliers, brands, c
       <Card><CardContent className="space-y-4 p-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="space-y-1.5"><Label>Branch</Label>
-            <Select value={branchId} onValueChange={(v) => { setBranchId(v); setRows(null); }}><SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={branchId} onValueChange={(v) => { setBranchId(v); setRows(null); followPageBranch(v, router.refresh); }}><SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.code} — {b.name}</SelectItem>)}</SelectContent></Select></div>
           <MultiPick label="Supplier" options={suppliers} value={supplierIds} onChange={setSupplierIds} placeholder="All suppliers" />
           <MultiPick label="Brand" options={brands} value={brandIds} onChange={setBrandIds} placeholder="All brands" />

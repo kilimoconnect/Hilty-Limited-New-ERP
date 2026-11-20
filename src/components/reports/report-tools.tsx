@@ -6,6 +6,7 @@ import { Printer, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { followPageBranch } from "@/lib/branch-sync";
 
 /** "2026-11-20" -> "20/11/2026" (printed filter values). */
 const dmy = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso.split("-").reverse().join("/") : iso);
@@ -88,12 +89,14 @@ export function ParamSelect({ param, value, options, placeholder }: { param: str
     const p = new URLSearchParams(sp.toString());
     p.set(param, id);
     router.push(`${pathname}?${p.toString()}`);
+    // A branch picked here becomes the header branch too.
+    if (param === "branch") followPageBranch(id, router.refresh);
   }
   const chosen = options.find((o) => o.id === value)?.label ?? placeholder;
   return (
     <>
     <PrintedFilter label={param === "branch" ? "Branch" : param === "by" ? "Grouped" : param.charAt(0).toUpperCase() + param.slice(1)} value={chosen} />
-    <select value={value} onChange={(e) => onChange(e.target.value)}
+    <select value={value} onChange={(e) => onChange(e.target.value)} data-branch-filter={param === "branch" ? "" : undefined}
       className="h-8 rounded-md border border-input bg-card px-2 text-sm print-hide">
       <option value="">{placeholder}</option>
       {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}

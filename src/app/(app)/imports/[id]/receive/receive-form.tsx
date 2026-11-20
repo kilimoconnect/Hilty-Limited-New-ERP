@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { followPageBranch, useBranchFollow } from "@/lib/branch-sync";
 
 export interface RecvLine { id: string; label: string; transit_kg: number; bulk: boolean; batch: string | null }
 const newRequestId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}-receipt`);
@@ -21,6 +22,8 @@ export function ReceiveForm({ shipmentId, lines, branches, defaultBranchId, need
   const router = useRouter();
   const [date, setDate] = React.useState(todayISO());
   const [branchId, setBranchId] = React.useState(defaultBranchId);
+  // The header branch and this picker stay in step.
+  useBranchFollow((id) => { if (branches.some((b) => b.id === id)) setBranchId(id); });
   const [notes, setNotes] = React.useState("");
   const [rate, setRate] = React.useState("");
   const [rows, setRows] = React.useState(lines.map((l) => ({
@@ -50,7 +53,7 @@ export function ReceiveForm({ shipmentId, lines, branches, defaultBranchId, need
       <Card><CardContent className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
         <div className="space-y-1.5"><Label>Receipt date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
         <div className="space-y-1.5"><Label>Received at</Label>
-          <Select value={branchId} onValueChange={setBranchId}><SelectTrigger><SelectValue /></SelectTrigger>
+          <Select value={branchId} onValueChange={(v) => { setBranchId(v); followPageBranch(v, router.refresh); }}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>)}</SelectContent></Select></div>
         {needsRate && (
           <div className="space-y-1.5"><Label>Accrual rate for uninvoiced goods (TZS per 1 {currency})</Label>

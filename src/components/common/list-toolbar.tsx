@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { followPageBranch } from "@/lib/branch-sync";
 
 export interface ToolbarSelect {
   name: string;
@@ -59,8 +60,8 @@ export function ListToolbar({
           <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={searchPlaceholder} className="pl-8" />
         </form>
         {selects.map((s) => (
-          <Select key={s.name} value={s.value || "all"} onValueChange={(v) => nav({ [s.name]: v })}>
-            <SelectTrigger className={`h-9 ${s.width ?? "w-[160px]"}`}>
+          <Select key={s.name} value={s.value || "all"} onValueChange={(v) => { nav({ [s.name]: v }); if (s.name === "branch") followPageBranch(v, router.refresh); }}>
+            <SelectTrigger className={`h-9 ${s.width ?? "w-[160px]"}`} data-branch-filter={s.name === "branch" ? "" : undefined}>
               <SelectValue placeholder={s.placeholder} />
             </SelectTrigger>
             <SelectContent>

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { setActiveBranch } from "@/lib/auth/actions";
+import { announceBranch, pageHasBranchFilter, useBranchFollow } from "@/lib/branch-sync";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,10 @@ export function BranchSelector({
   // `picked` only holds the user's choice while it is being saved.
   const [picked, setPicked] = React.useState<{ id: string; from: string | null } | null>(null);
   const value = (picked && picked.from === activeBranchId ? picked.id : activeBranchId) ?? undefined;
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  // A branch chosen on the page shows here at once (the server confirms it after).
+  useBranchFollow((id) => setPicked({ id, from: activeBranchId }));
 
   if (branches.length === 0) {
     return (
@@ -41,8 +46,16 @@ export function BranchSelector({
   async function onChange(next: string) {
     setPicked({ id: next, from: activeBranchId });
     setPending(true);
+    announceBranch(next);
     try {
       await setActiveBranch(next);
+      // The page's own branch filter (?branch=) follows the header.
+      if (pageHasBranchFilter()) {
+        const p = new URLSearchParams(sp.toString());
+        p.set("branch", next);
+        p.delete("page");
+        router.replace(`${pathname}?${p.toString()}`);
+      }
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not switch branch");

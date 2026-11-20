@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { followPageBranch, useBranchFollow } from "@/lib/branch-sync";
 
 type Opt = { id: string; label: string };
 export interface RebagOptions {
@@ -41,6 +42,8 @@ export function RebagForm({ options, initial, defaultBranchId }: { options: Reba
   const router = useRouter();
   const issued = initial?.status === "issued";
   const [branchId, setBranchId] = React.useState(initial?.branchId ?? defaultBranchId);
+  // The header branch and this picker stay in step.
+  useBranchFollow((id) => { if (options.branches.some((b) => b.id === id)) setBranchId(id); }, !issued);
   const [bulkId, setBulkId] = React.useState(initial?.bulkProductId ?? "");
   const [shipmentId, setShipmentId] = React.useState(initial?.shipmentId ?? NONE);
   const [date, setDate] = React.useState(initial?.orderDate ?? todayISO());
@@ -94,7 +97,7 @@ export function RebagForm({ options, initial, defaultBranchId }: { options: Reba
     <div className="space-y-4">
       <Card><CardContent className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-4">
         <div className="space-y-1.5"><Label>Branch *</Label>
-          <Select value={branchId} onValueChange={setBranchId} disabled={issued}><SelectTrigger><SelectValue /></SelectTrigger>
+          <Select value={branchId} onValueChange={(v) => { setBranchId(v); followPageBranch(v, router.refresh); }} disabled={issued}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{options.branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-1.5 sm:col-span-2"><Label>Bulk product *</Label>
           <Select value={bulkId} onValueChange={(v) => { setBulkId(v); setOutputs([{ key: uid(), product: "", bags: "" }]); setBulkLines([{ key: uid(), lot: NONE, kg: "" }]); }} disabled={issued}>

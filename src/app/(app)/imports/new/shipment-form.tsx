@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductPicker, type PickerProduct } from "@/components/common/product-picker";
+import { followPageBranch, useBranchFollow } from "@/lib/branch-sync";
 
 export interface Opt { id: string; label: string }
 const INCOTERMS = ["EXW", "FCA", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"];
@@ -38,6 +39,8 @@ export function ShipmentForm({ suppliers, branches, products, currencies, defaul
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
+  // The header branch and this picker stay in step.
+  useBranchFollow((id) => { if (branches.some((b) => b.id === id)) setF((prev) => ({ ...prev, branchId: id })); });
   const setLine = (k: string, patch: Partial<Line>) => setLines(lines.map((l) => (l.key === k ? { ...l, ...patch } : l)));
   const pMap = new Map(products.map((p) => [p.id, p]));
   const kgOf = (l: Line) => Number(l.weight || 0) * (l.unit === "mt" ? 1000 : 1);
@@ -73,7 +76,7 @@ export function ShipmentForm({ suppliers, branches, products, currencies, defaul
           <Select value={f.supplierId} onValueChange={(v) => set({ supplierId: v })}><SelectTrigger><SelectValue placeholder="Goods supplier" /></SelectTrigger>
             <SelectContent>{suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-1.5"><Label>Destination warehouse *</Label>
-          <Select value={f.branchId} onValueChange={(v) => set({ branchId: v })}><SelectTrigger><SelectValue /></SelectTrigger>
+          <Select value={f.branchId} onValueChange={(v) => { set({ branchId: v }); followPageBranch(v, router.refresh); }}><SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-1.5"><Label>Shipment reference</Label><Input value={f.reference} onChange={(e) => set({ reference: e.target.value })} placeholder="PO / contract no." /></div>
         <div className="space-y-1.5"><Label>Delivery terms *</Label>

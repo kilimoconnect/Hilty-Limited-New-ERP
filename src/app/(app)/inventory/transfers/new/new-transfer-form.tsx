@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { StockLineEditor, newLine, type ProductOption, type StockLine } from "@/components/inventory/stock-line-editor";
 import { ChargeRows, newCharge, parseCharges, type ChargeCategory, type ChargeRow } from "@/components/inventory/charge-rows";
+import { followPageBranch, useBranchFollow } from "@/lib/branch-sync";
 
 type Branch = { id: string; name: string; code: string };
 
@@ -48,6 +49,16 @@ export function NewTransferForm({
   const router = useRouter();
   const [source, setSource] = React.useState(sourceBranches.some((b) => b.id === sourceBranchId) ? sourceBranchId : sourceBranches[0]?.id ?? "");
   const [dest, setDest] = React.useState("");
+  // The sending branch, the header branch and the page (?branch=) stay in step.
+  useBranchFollow((id) => { if (sourceBranches.some((b) => b.id === id)) { setSource(id); if (dest === id) setDest(""); } });
+  function chooseSource(id: string) {
+    setSource(id);
+    if (dest === id) setDest("");
+    followPageBranch(id, router.refresh);
+    const p = new URLSearchParams(window.location.search);
+    p.set("branch", id);
+    router.replace(`${window.location.pathname}?${p.toString()}`, { scroll: false });
+  }
   const [date, setDate] = React.useState(todayISO());
   const [expected, setExpected] = React.useState("");
   const [reference, setReference] = React.useState("");
@@ -95,7 +106,7 @@ export function NewTransferForm({
         <h3 className="font-semibold">Route</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <div className="space-y-1.5"><Label>From branch</Label>
-            <Select value={source} onValueChange={setSource}>
+            <Select value={source} onValueChange={chooseSource}>
               <SelectTrigger><SelectValue placeholder="Sending branch" /></SelectTrigger>
               <SelectContent>{sourceBranches.map((b) => <SelectItem key={b.id} value={b.id}>{b.code} — {b.name}</SelectItem>)}</SelectContent>
             </Select></div>
