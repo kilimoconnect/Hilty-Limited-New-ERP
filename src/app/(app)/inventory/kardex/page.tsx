@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListToolbar } from "@/components/common/list-toolbar";
 import { formatMoney, formatQuantity, formatDateTime, localDayStart, localDayEnd } from "@/lib/format";
+import { pageBranch } from "@/lib/branch-filter";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -35,7 +36,8 @@ export default async function KardexPage(props: { searchParams: SP }) {
 
   const sp = await props.searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const type = typeof sp.type === "string" ? sp.type : "";
   // One item's Kardex (opened by clicking an item).
   const productId = typeof sp.product === "string" && /^[0-9a-f-]{36}$/i.test(sp.product) ? sp.product : "";
@@ -108,7 +110,7 @@ export default async function KardexPage(props: { searchParams: SP }) {
         searchValue={q}
         searchPlaceholder={item ? "Search within this item..." : "Search product SKU or name..."}
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[170px]",
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[170px]",
             options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "type", placeholder: "All types", value: type, width: "w-[160px]",
             options: Object.entries(TYPE_LABEL).map(([v, l]) => ({ value: v, label: l })) },
@@ -162,7 +164,7 @@ export default async function KardexPage(props: { searchParams: SP }) {
         </div>
       )}
 
-      <Pager basePath="/inventory/kardex" params={{ q, branch, type, product: productId, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/inventory/kardex" params={{ q, branch: branchParam, type, product: productId, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

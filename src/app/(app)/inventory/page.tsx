@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListToolbar } from "@/components/common/list-toolbar";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { formatMoney, formatQuantity } from "@/lib/format";
+import { pageBranch } from "@/lib/branch-filter";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -26,7 +28,8 @@ export default async function InventoryPage(props: { searchParams: SP }) {
 
   const sp = await props.searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const low = sp.low === "1";
   const category = typeof sp.category === "string" ? sp.category : "";
   const brand = typeof sp.brand === "string" ? sp.brand : "";
@@ -42,7 +45,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
 
   type Row = {
     id: string; quantity: number; avg_unit_cost: number; stock_value: number;
-    qty_in_transit: number; last_movement_at: string | null;
+    qty_in_transit: number; last_movement_at: string | null; product_id: string; branch_id: string;
     product: { sku: string; name: string; reorder_level: number; is_active: boolean;
       category: { name: string } | null; brand: { name: string } | null; unit: { symbol: string } | null } | null;
     branch: { name: string; code: string } | null;
@@ -77,7 +80,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
         searchValue={q}
         searchPlaceholder="Search SKU or name..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[180px]",
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[180px]",
             options: ctx.branches.map((b) => ({ value: b.id, label: `${b.name} (${b.code})` })) },
           { name: "category", placeholder: "All categories", value: category, width: "w-[170px]",
             options: (categories ?? []).map((c) => ({ value: c.id, label: c.name })) },
@@ -109,10 +112,11 @@ export default async function InventoryPage(props: { searchParams: SP }) {
               {list.map((r) => {
                 const lowStock = Number(r.quantity) <= Number(r.product?.reorder_level ?? 0);
                 return (
-                  <TableRow key={r.id}>
+                  // Click a row: that item's Kardex at this branch.
+                  <ClickableRow key={r.id} href={`/inventory/kardex?product=${r.product_id}&branch=${r.branch_id}`} title="Open this item's Kardex">
                     <TableCell className="font-mono text-xs">{r.product?.sku}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{r.product?.name}</div>
+                      <div className="font-medium text-primary">{r.product?.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {[r.product?.category?.name, r.product?.brand?.name].filter(Boolean).join(" · ") || "—"}
                       </div>
@@ -135,7 +139,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
                         <StatusBadge active={r.product?.is_active ?? true} />
                       )}
                     </TableCell>
-                  </TableRow>
+                  </ClickableRow>
                 );
               })}
             </TableBody>
@@ -148,7 +152,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
           Total stock value ({total} {total === 1 ? "row" : "rows"}{q || branch || category || brand || low ? ", filtered" : ""}): <span className="font-semibold text-foreground tabular-nums">{formatMoney(totalValue)}</span>
         </p>
       )}
-      <Pager basePath="/inventory" params={{ q, branch, category, brand, low: low ? "1" : "" }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/inventory" params={{ q, branch: branchParam, category, brand, low: low ? "1" : "" }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

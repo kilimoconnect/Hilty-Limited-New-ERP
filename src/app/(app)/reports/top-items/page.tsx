@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PeriodFilter, ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
 import { formatDate, formatMoney, formatQuantity, todayISO } from "@/lib/format";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Top Items & Slow Movers" };
 
@@ -26,7 +27,8 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = reportPeriod(sp, addDays(todayISO(), -29));
-  const branch = str(sp, "branch");
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const view = str(sp, "view") === "slow" ? "slow" : "top";
   // Gross profit is for the Owner only; stock value follows the inventory-cost permission.
   const showProfit = ctx.user.isOwner;
@@ -61,7 +63,7 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
         <ParamSelect param="view" value={view === "slow" ? "slow" : ""} placeholder="Top items" options={[{ id: "slow", label: "Slow movers" }]} />
         {view === "top" && <ParamSelect param="sort" value={sort === "revenue" ? "" : sort} placeholder="Rank by sales value"
           options={[{ id: "qty", label: "Rank by quantity" }, ...(showProfit ? [{ id: "profit", label: "Rank by profit" }] : [])]} />}
-        <ParamSelect param="branch" value={branch} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
+        <ParamSelect param="branch" value={branchParam} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
           options={ctx.branches.map((b) => ({ id: b.id, label: `${b.code} - ${b.name}` }))} />
       </div>
 
@@ -107,7 +109,7 @@ export default async function TopItemsPage(props: { searchParams: Promise<SP> })
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/top-items" params={{ start, end, branch, view: view === "slow" ? "slow" : "", sort: sort === "revenue" ? "" : sort }} page={page} pageSize={size} total={list.length} />
+      <Pager basePath="/reports/top-items" params={{ start, end, branch: branchParam, view: view === "slow" ? "slow" : "", sort: sort === "revenue" ? "" : sort }} page={page} pageSize={size} total={list.length} />
     </div>
   );
 }

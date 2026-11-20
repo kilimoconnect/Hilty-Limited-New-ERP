@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PeriodFilter, ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
 import { formatDate, formatMoney, todayISO } from "@/lib/format";
 import { CountCell } from "./count-cell";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Daily Cash-up" };
 
@@ -40,7 +41,8 @@ export default async function CashUpPage(props: { searchParams: Promise<SP> }) {
   if (start > end) start = end;
   const clamped = start < addDays(end, -(MAX_DAYS - 1));
   if (clamped) start = addDays(end, -(MAX_DAYS - 1));
-  const branch = str(sp, "branch");
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const kind = str(sp, "kind");
 
   const myBranches = ctx.user.isOwner ? null : ctx.user.branchIds;
@@ -71,7 +73,7 @@ export default async function CashUpPage(props: { searchParams: Promise<SP> }) {
           header={["Date", "Branch", "Till", "Opening", "Sales", "Other in", "Moved in", "Expenses", "Purchases", "Moved out", "Other out", "Expected", "Counted", "Over/short", "Count note"]} rows={csv} /></div>} />
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <PeriodFilter start={start} end={end} />
-        <ParamSelect param="branch" value={branch} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
+        <ParamSelect param="branch" value={branchParam} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
           options={ctx.branches.filter((b) => b.code !== "HQ").map((b) => ({ id: b.id, label: `${b.code} - ${b.name}` }))} />
         <ParamSelect param="kind" value={kind} placeholder="All tills"
           options={[{ id: "cash", label: "Cash tills" }, { id: "mobile", label: "Mobile money tills" }]} />

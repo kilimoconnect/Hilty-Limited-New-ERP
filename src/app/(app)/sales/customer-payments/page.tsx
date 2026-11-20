@@ -14,6 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ReceiptActions } from "./receipt-actions";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Customer Payments" };
 
@@ -27,7 +28,8 @@ export default async function CustomerPaymentsPage(props: { searchParams: Promis
   const canVoid = can(ctx.user, "transactions.void");
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const term = q.replace(/[,()]/g, " ").trim();
   const customer = typeof sp.customer === "string" ? sp.customer : "";
@@ -60,7 +62,7 @@ export default async function CustomerPaymentsPage(props: { searchParams: Promis
       />
       <ListToolbar searchValue={q} searchPlaceholder="Search receipt no / reference..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "customer", placeholder: "All customers", value: customer, width: "w-[200px]", options: (customers ?? []).map((x) => ({ value: x.id, label: x.name })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
         ]}
@@ -99,7 +101,7 @@ export default async function CustomerPaymentsPage(props: { searchParams: Promis
           </Table>
         </div>
       )}
-      <Pager basePath="/sales/customer-payments" params={{ q, status, branch, customer, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/sales/customer-payments" params={{ q, status, branch: branchParam, customer, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

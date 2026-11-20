@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PeriodFilter, ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Item Activity" };
 
@@ -27,7 +28,8 @@ export default async function ItemActivityPage(props: { searchParams: Promise<SP
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = reportPeriod(sp);
-  const branch = str(sp, "branch");
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const productId = str(sp, "product");
   const branches = reportBranches(ctx, branch);
   // Cost of sales and gross profit are for the Owner only.
@@ -87,7 +89,7 @@ export default async function ItemActivityPage(props: { searchParams: Promise<SP
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <ParamSelect param="product" value={productId} placeholder="Choose a product..." options={products.map((p) => ({ id: p.id, label: `${p.sku} - ${p.name}` }))} />
         <PeriodFilter start={start} end={end} />
-        <ParamSelect param="branch" value={branch} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
+        <ParamSelect param="branch" value={branchParam} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
           options={ctx.branches.map((b) => ({ id: b.id, label: `${b.code} - ${b.name}` }))} />
       </div>
 

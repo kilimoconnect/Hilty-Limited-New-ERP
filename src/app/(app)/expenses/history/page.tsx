@@ -15,6 +15,7 @@ import { DocStatusBadge, PayStatusBadge } from "@/components/common/doc-status-b
 import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Expense History" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -31,7 +32,8 @@ export default async function ExpenseHistoryPage(props: { searchParams: SP }) {
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
   const pay = typeof sp.pay === "string" ? sp.pay : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const category = typeof sp.category === "string" ? sp.category : "";
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const term = q.replace(/[,()]/g, " ").trim();
@@ -58,7 +60,7 @@ export default async function ExpenseHistoryPage(props: { searchParams: SP }) {
       <PageHeader title="Expense History" actions={<Button asChild><Link href="/expenses/new">New Expense</Link></Button>} />
       <ListToolbar searchValue={q} searchPlaceholder="Search expense no, reference, payee..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "category", placeholder: "All categories", value: category, width: "w-[220px]", options: (categories ?? []).map((c) => ({ value: c.id, label: c.name })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
           { name: "pay", placeholder: "All payments", value: pay, width: "w-[150px]", options: [{ value: "unpaid", label: "Unpaid" }, { value: "partially_paid", label: "Partial" }, { value: "paid", label: "Paid" }] },
@@ -90,7 +92,7 @@ export default async function ExpenseHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
-      <Pager basePath="/expenses/history" params={{ q, status, pay, branch, category, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/expenses/history" params={{ q, status, pay, branch: branchParam, category, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { ListToolbar } from "@/components/common/list-toolbar";
 import { OrderStatusBadge, daysLeft } from "@/components/purchases/order-status";
 import { formatDate, formatQuantity } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Purchase Orders" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -36,7 +37,8 @@ export default async function PurchaseOrdersPage(props: { searchParams: SP }) {
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const supplier = typeof sp.supplier === "string" ? sp.supplier : "";
   const term = q.replace(/[,()%]/g, " ").trim();
 
@@ -70,7 +72,7 @@ export default async function PurchaseOrdersPage(props: { searchParams: SP }) {
       <ListToolbar searchValue={q} searchPlaceholder="Search order number or reference..."
         selects={[
           { name: "status", placeholder: "All statuses", value: status, width: "w-[210px]", options: STATUSES },
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[150px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[150px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "supplier", placeholder: "All suppliers", value: supplier, width: "w-[200px]", options: (suppliers ?? []).map((x) => ({ value: x.id, label: x.name })) },
         ]}
         dates={{ from: from_, to: to_ }} />
@@ -108,7 +110,7 @@ export default async function PurchaseOrdersPage(props: { searchParams: SP }) {
           </Table>
         </Card>
       )}
-      <Pager basePath="/purchases/orders" params={{ q, status, branch, supplier, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
+      <Pager basePath="/purchases/orders" params={{ q, status, branch: branchParam, supplier, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

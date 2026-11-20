@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 import { STATUS_VARIANT } from "./status";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Rebagging" };
 
@@ -30,7 +31,8 @@ export default async function RebaggingPage(props: { searchParams: Promise<Recor
   const search = typeof sp.q === "string" ? sp.q.trim() : "";
   const term = search.replace(/[,()]/g, " ").trim();
   const status = typeof sp.status === "string" ? sp.status : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   let q = admin.from("rebag_orders")
     .select("id, document_number, order_date, document_status, issued_kg, output_value, branch:branches(code), bulk:products!rebag_orders_bulk_product_id_fkey(name), shipment:import_shipments(id, document_number), outputs:rebag_outputs(bags, net_kg, product:products(name, net_weight_kg))", { count: "exact" })
@@ -54,7 +56,7 @@ export default async function RebaggingPage(props: { searchParams: Promise<Recor
         actions={can(ctx.user, "rebagging.create") ? <Button asChild><Link href="/inventory/rebagging/new">New rebagging order</Link></Button> : null} />
       <ListToolbar searchValue={search} searchPlaceholder="Search order no..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "issued", label: "Issued" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }, { value: "voided", label: "Voided" }] },
         ]}
         dates={{ from: from_, to: to_ }} />
@@ -88,7 +90,7 @@ export default async function RebaggingPage(props: { searchParams: Promise<Recor
           </Table>
         </CardContent></Card>
       )}
-      <Pager basePath="/inventory/rebagging" params={{ q: search, status, branch, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
+      <Pager basePath="/inventory/rebagging" params={{ q: search, status, branch: branchParam, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

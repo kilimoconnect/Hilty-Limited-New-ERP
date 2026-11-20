@@ -13,7 +13,6 @@ import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatQuantity, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplyCreditPanel, type CreditOpt } from "./apply-credit";
-import { PriceAdjustmentForm } from "./cost-corrections";
 import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Purchase" };
@@ -48,7 +47,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
   const isFc = s.currency_code !== "TZS";
   const pb = payable as { id: string; status: string; outstanding: number; fc_outstanding: number; fc_original: number } | null;
   const openAmount = pb ? (isFc ? Number(pb.fc_outstanding) : Number(pb.outstanding)) : 0;
-  const ll = (lines ?? []) as unknown as Array<{ id: string; description: string; quantity: number; unit_cost: number; discount: number; tax_name: string | null; tax_rate: number; net_amount: number; tax_amount: number; gross_amount: number; inventory_value: number; fc_gross_amount: number | null }>;
+  const ll = (lines ?? []) as unknown as Array<{ id: string; product_id: string | null; description: string; quantity: number; unit_cost: number; discount: number; tax_name: string | null; tax_rate: number; net_amount: number; tax_amount: number; gross_amount: number; inventory_value: number; fc_gross_amount: number | null }>;
 
   // Open supplier credits in this invoice's currency, and the foreign balance history.
   const [{ data: creditRows }, { data: events }] = await Promise.all([
@@ -61,11 +60,6 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
   ]);
   const credits: CreditOpt[] = ((creditRows ?? []) as unknown as Array<{ id: string; fc_remaining: number; remaining: number; credit_date: string; return: { document_number: string | null } | null }>)
     .map((c) => ({ id: c.id, label: `Credit ${c.return?.document_number ?? ""}`, date: c.credit_date, fc_remaining: Number(c.fc_remaining), remaining: Number(c.remaining) }));
-  // Supplier price corrections (stock purchases, cost permission).
-  const corrections = s.document_status === "posted" && (pur as { posting_mode: string }).posting_mode !== "invoice_only" && showCost;
-  const { data: adjustments } = corrections
-    ? await admin.from("purchase_cost_adjustments").select("id, kind, document_number, document_date, supplier_reference, reason, total, credit_created").eq("purchase_id", id).eq("document_status", "posted").order("created_at")
-    : { data: [] };
   const EVENT_LABEL: Record<string, string> = {
     invoice: "Invoice", settlement: "Payment", settlement_void: "Payment voided", return: "Return", return_void: "Return voided",
     credit_application: "Credit applied", revaluation: "Revaluation", revaluation_void: "Revaluation voided", invoice_void: "Invoice voided",
@@ -137,7 +131,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
           <TableBody>
             {ll.map((l) => (
               <TableRow key={l.id}>
-                <TableCell>{l.description}</TableCell>
+                <TableCell>{l.product_id ? <Link href={`/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}`} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatQuantity(l.quantity)}</TableCell>
                 <TableCell className="text-right tabular-nums">{isFc ? `${s.currency_code} ` : ""}{formatMoney(l.unit_cost)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatMoney(l.discount)}</TableCell>
@@ -170,24 +164,6 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
         <Card className="mt-4"><CardContent className="p-5">
           <h3 className="mb-2 text-sm font-semibold">Apply supplier credit ({s.currency_code})</h3>
           <ApplyCreditPanel payableId={pb.id} currency={s.currency_code} credits={credits} maxOpen={openAmount} />
-        </CardContent></Card>
-      )}
-
-      {corrections && (
-        <Card className="mt-4"><CardContent className="space-y-3 p-5 text-sm">
-          <h3 className="font-semibold">Price corrections</h3>
-          <p className="text-xs text-muted-foreground">Supplier credit or debit notes that change the price of this purchase. The cost difference reaches the goods wherever they are now: in stock, sold, at another branch or in transit.</p>
-          {((adjustments ?? []) as { id: string; kind: string; document_number: string | null; document_date: string; supplier_reference: string | null; reason: string; total: number; credit_created: number }[]).map((a) => (
-            <div key={a.id} className="flex justify-between border-b border-border py-1 last:border-0">
-              <span>{a.document_number} · {a.kind === "credit_note" ? "Credit note" : "Debit note"} · {formatDate(a.document_date)}{a.supplier_reference && ` · ${a.supplier_reference}`} <span className="text-xs text-muted-foreground">{a.reason}</span></span>
-              <span className="tabular-nums">{a.kind === "credit_note" ? "−" : "+"}{formatMoney(a.total)}{Number(a.credit_created) > 0 && <span className="text-xs text-muted-foreground"> ({formatMoney(a.credit_created)} as supplier credit)</span>}</span>
-            </div>
-          ))}
-          {can(ctx.user, "purchases.post") && !isFc && (
-            <div className="rounded-md border border-border p-3">
-              <PriceAdjustmentForm purchaseId={id} lines={ll.filter((l) => Number(l.inventory_value) > 0).map((l) => ({ id: l.id, label: `${l.description} (${formatQuantity(l.quantity)})` }))} />
-            </div>
-          )}
         </CardContent></Card>
       )}
 

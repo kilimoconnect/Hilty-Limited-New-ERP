@@ -98,7 +98,8 @@ export function ParamSelect({ param, value, options, placeholder }: { param: str
     <PrintedFilter label={param === "branch" ? "Branch" : param === "by" ? "Grouped" : param.charAt(0).toUpperCase() + param.slice(1)} value={chosen} />
     <select value={value} onChange={(e) => onChange(e.target.value)} data-branch-filter={param === "branch" ? "" : undefined}
       className="h-8 rounded-md border border-input bg-card px-2 text-sm print-hide">
-      <option value="">{placeholder}</option>
+      {/* For branches the first choice means "all" (an empty filter shows the header branch). */}
+      {!(param === "branch" && options.some((o) => o.id === "all")) && <option value={param === "branch" ? "all" : ""}>{placeholder}</option>}
       {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
     </select>
     </>

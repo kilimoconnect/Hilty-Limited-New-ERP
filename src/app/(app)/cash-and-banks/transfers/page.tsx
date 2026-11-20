@@ -15,6 +15,7 @@ import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Transfers" };
 
@@ -29,7 +30,8 @@ export default async function TransfersPage(props: { searchParams: Promise<Recor
   const canOwner = can(ctx.user, "transactions.void");
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const term = q.replace(/[,()]/g, " ").trim();
   const account = typeof sp.account === "string" ? sp.account : "";
@@ -54,7 +56,7 @@ export default async function TransfersPage(props: { searchParams: Promise<Recor
       <PageHeader title="Cash Transfers" actions={<Button asChild><Link href="/cash-and-banks/transfer">New Transfer</Link></Button>} />
       <ListToolbar searchValue={q} searchPlaceholder="Search transfer no / reference..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "account", placeholder: "All accounts", value: account, width: "w-[200px]", options: (accounts ?? []).map((a) => ({ value: a.id, label: a.name })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
         ]}
@@ -83,7 +85,7 @@ export default async function TransfersPage(props: { searchParams: Promise<Recor
           </Table>
         </div>
       )}
-      <Pager basePath="/cash-and-banks/transfers" params={{ q, status, branch, account, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/cash-and-banks/transfers" params={{ q, status, branch: branchParam, account, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

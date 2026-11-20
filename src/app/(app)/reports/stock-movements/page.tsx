@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PeriodFilter, ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
 import { formatDate, formatMoney, formatQuantity, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Stock Movements" };
 
@@ -39,7 +40,8 @@ export default async function StockMovementsPage(props: { searchParams: Promise<
   const sp = await props.searchParams;
   const view = str(sp, "view") === "adjustments" ? "adjustments" : "transfers";
   const { start, end } = reportPeriod(sp, addDays(todayISO(), -89));
-  const branch = str(sp, "branch");
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const side = ["out", "in"].includes(str(sp, "side")) ? str(sp, "side") : "";
   const productId = str(sp, "product");
   const direction = ["increase", "decrease"].includes(str(sp, "direction")) ? str(sp, "direction") : "";
@@ -128,7 +130,7 @@ export default async function StockMovementsPage(props: { searchParams: Promise<
       <div className="mb-3 flex flex-wrap gap-2">{tab("transfers", "Transfers")}{tab("adjustments", "Adjustments")}</div>
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <PeriodFilter start={start} end={end} />
-        <ParamSelect param="branch" value={branch} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
+        <ParamSelect param="branch" value={branchParam} placeholder={ctx.user.isOwner ? "All branches" : "All my branches"}
           options={ctx.branches.map((b) => ({ id: b.id, label: `${b.code} - ${b.name}` }))} />
         {view === "transfers" && branch && <ParamSelect param="side" value={side} placeholder="Sent or received"
           options={[{ id: "out", label: "Sent from this branch" }, { id: "in", label: "Received at this branch" }]} />}
@@ -218,7 +220,7 @@ export default async function StockMovementsPage(props: { searchParams: Promise<
         </>
       )}
       <Pager basePath="/reports/stock-movements"
-        params={{ start, end, branch, product: productId, ...(view === "adjustments" ? { view, direction } : { side }) }}
+        params={{ start, end, branch: branchParam, product: productId, ...(view === "adjustments" ? { view, direction } : { side }) }}
         page={page} pageSize={size} total={total} />
     </div>
   );

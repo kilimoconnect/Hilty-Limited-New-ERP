@@ -20,7 +20,9 @@ export default async function PricingPage(props: { searchParams: Promise<SP> }) 
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const branches = ctx.branches.filter((b) => ctx.user.isOwner || ctx.user.branchIds.includes(b.id));
-  const branchId = str(sp, "branch") || (branches.some((b) => b.id === ctx.branchId) ? ctx.branchId! : branches[0]?.id ?? "");
+  // Prices are kept per branch: one branch at a time (the header branch unless another is chosen).
+  const asked = str(sp, "branch");
+  const branchId = (asked && asked !== "all" && branches.some((b) => b.id === asked) ? asked : "") || (branches.some((b) => b.id === ctx.branchId) ? ctx.branchId! : branches[0]?.id ?? "");
   const productId = str(sp, "product");
   const admin = createAdminClient();
   const stock = await selectAll(() => admin.from("stock_balances").select("id, product_id, quantity, avg_unit_cost, product:products(sku, name)")

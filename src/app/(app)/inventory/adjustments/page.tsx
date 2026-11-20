@@ -14,6 +14,7 @@ import {
 import { NewAdjustmentButton } from "./adjustment-form";
 import { InventoryDocActions } from "@/components/inventory/doc-actions";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Stock Adjustments" };
 
@@ -33,7 +34,8 @@ export default async function AdjustmentsPage(props: { searchParams: Promise<Rec
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const term = q.replace(/[,()]/g, " ").trim();
   const status = typeof sp.status === "string" ? sp.status : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const direction = typeof sp.direction === "string" ? sp.direction : "";
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   let query = admin.from("stock_adjustments")
@@ -61,7 +63,7 @@ export default async function AdjustmentsPage(props: { searchParams: Promise<Rec
       />
       <ListToolbar searchValue={q} searchPlaceholder="Search adjustment no / reason..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "direction", placeholder: "All directions", value: direction, width: "w-[190px]", options: [{ value: "increase", label: "Increase" }, { value: "decrease", label: "Decrease" }] },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
         ]}
@@ -102,7 +104,7 @@ export default async function AdjustmentsPage(props: { searchParams: Promise<Rec
           </Table>
         </div>
       )}
-      <Pager basePath="/inventory/adjustments" params={{ q, status, branch, direction, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
+      <Pager basePath="/inventory/adjustments" params={{ q, status, branch: branchParam, direction, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

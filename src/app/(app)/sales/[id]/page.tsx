@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
@@ -43,7 +44,7 @@ export default async function SaleDetailPage(props: { params: Params }) {
     branch: { name: string; code: string } | null;
   };
   const ll = (lines ?? []) as unknown as Array<{
-    id: string; description: string; quantity: number; unit_price: number; discount: number;
+    id: string; product_id: string | null; description: string; quantity: number; unit_price: number; discount: number;
     tax_name: string | null; tax_rate: number; net_amount: number; tax_amount: number; line_total: number;
     unit_cost: number; cogs: number;
   }>;
@@ -108,7 +109,7 @@ export default async function SaleDetailPage(props: { params: Params }) {
             <TableBody>
               {ll.map((l) => (
                 <TableRow key={l.id}>
-                  <TableCell>{l.description}</TableCell>
+                  <TableCell>{l.product_id ? <Link href={`/inventory/kardex?product=${l.product_id}&branch=${sale.branch_id}`} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatQuantity(l.quantity)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(l.unit_price)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(l.discount)}</TableCell>

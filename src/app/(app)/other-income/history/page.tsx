@@ -14,6 +14,7 @@ import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Other Income History" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -29,7 +30,8 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
   const size = pageSizeOf(sp);
   const status = typeof sp.status === "string" ? sp.status : "";
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const type = typeof sp.type === "string" ? sp.type : "";
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const term = q.replace(/[,()]/g, " ").trim();
@@ -55,7 +57,7 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
       <PageHeader title="Other Income History" actions={<Button asChild><Link href="/other-income/new">New Income</Link></Button>} />
       <ListToolbar searchValue={q} searchPlaceholder="Search income no / received from..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "type", placeholder: "All income types", value: type, width: "w-[200px]", options: (types ?? []).map((t) => ({ value: t.id, label: t.name })) },
           { name: "status", placeholder: "All statuses", value: status, width: "w-[150px]", options: [{ value: "draft", label: "Draft" }, { value: "posted", label: "Posted" }, { value: "voided", label: "Voided" }] },
         ]}
@@ -86,7 +88,7 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
           </Table>
         </div>
       )}
-      <Pager basePath="/other-income/history" params={{ q, status, branch, type, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/other-income/history" params={{ q, status, branch: branchParam, type, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { addDays, reportBranches } from "@/lib/reports/scope";
 import { profitAndLoss } from "@/lib/reports/queries";
 import { receivablesAgeing, payablesAgeing, vatReport } from "@/lib/reports/subledger";
 import { cn } from "@/lib/utils";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -54,7 +55,8 @@ export default async function DashboardPage(props: { searchParams: Promise<SP> }
   const today = todayISO();
   const period: PeriodId = (PERIODS.find((p) => p.id === str(sp, "period"))?.id ?? "today");
   const { start, end } = periodRange(period, today);
-  const branch = str(sp, "branch");
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const branches = reportBranches(ctx, branch);          // null = whole company
   const none = !!branches && branches.length === 0;
   // Adds the branch filter to a query when the dashboard is limited to branches.
@@ -168,7 +170,7 @@ export default async function DashboardPage(props: { searchParams: Promise<SP> }
   const href = (p: PeriodId) => {
     const q = new URLSearchParams();
     if (p !== "today") q.set("period", p);
-    if (branch) q.set("branch", branch);
+    q.set("branch", branchParam);
     const s = q.toString();
     return s ? `/dashboard?${s}` : "/dashboard";
   };
@@ -189,7 +191,7 @@ export default async function DashboardPage(props: { searchParams: Promise<SP> }
           ))}
         </div>
         {ctx.branches.length > 1 && (
-          <ParamSelect param="branch" value={branch} placeholder={user.isOwner ? "All branches" : "All my branches"}
+          <ParamSelect param="branch" value={branchParam} placeholder={user.isOwner ? "All branches" : "All my branches"}
             options={ctx.branches.map((b) => ({ id: b.id, label: `${b.code} - ${b.name}` }))} />
         )}
       </div>

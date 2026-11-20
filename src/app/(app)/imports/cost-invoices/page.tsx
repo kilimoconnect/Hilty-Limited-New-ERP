@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatMoney } from "@/lib/format";
 import { VoidCostInvoiceButton } from "./void-button";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Cost Invoices" };
 
@@ -29,7 +30,8 @@ export default async function CostInvoicesPage(props: { searchParams: Promise<Re
   const admin = createAdminClient();
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const term = q.replace(/[,()]/g, " ").trim();
-  const branch = typeof sp.branch === "string" ? sp.branch : "";
+  // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
+  const { branch, branchParam } = pageBranch(ctx, sp);
   const supplier = typeof sp.supplier === "string" ? sp.supplier : "";
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   const { data: supplierOptions } = await admin.from("suppliers").select("id, name").eq("company_id", ctx.companyId).order("name");
@@ -56,7 +58,7 @@ export default async function CostInvoicesPage(props: { searchParams: Promise<Re
         actions={can(ctx.user, "cost_invoices.post") ? <Button asChild><Link href="/imports/cost-invoices/new">New cost invoice</Link></Button> : null} />
       <ListToolbar searchValue={q} searchPlaceholder="Search invoice no / supplier invoice..."
         selects={[
-          { name: "branch", placeholder: "All branches", value: branch, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
+          { name: "branch", placeholder: "All branches", value: branchParam, width: "w-[140px]", options: ctx.branches.map((b) => ({ value: b.id, label: b.code })) },
           { name: "supplier", placeholder: "All suppliers", value: supplier, width: "w-[190px]", options: (supplierOptions ?? []).map((o) => ({ value: o.id, label: o.name })) },
         ]}
         dates={{ from: from_, to: to_ }} />
@@ -97,7 +99,7 @@ export default async function CostInvoicesPage(props: { searchParams: Promise<Re
           </Table>
         </CardContent></Card>
       )}
-      <Pager basePath="/imports/cost-invoices" params={{ q, branch, supplier, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
+      <Pager basePath="/imports/cost-invoices" params={{ q, branch: branchParam, supplier, from: from_, to: to_ }} page={page} pageSize={size} total={count ?? 0} />
     </div>
   );
 }

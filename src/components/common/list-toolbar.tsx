@@ -42,7 +42,9 @@ export function ListToolbar({
   function nav(next: Record<string, string>) {
     const p = new URLSearchParams(params.toString());
     for (const [k, v] of Object.entries(next)) {
-      if (!v || v === "all") p.delete(k);
+      // "All branches" is kept in the address: without it the page shows the header branch.
+      if (k === "branch" && v === "all") p.set(k, "all");
+      else if (!v || v === "all") p.delete(k);
       else p.set(k, v);
     }
     p.delete("page");

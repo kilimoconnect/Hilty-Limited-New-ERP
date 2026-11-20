@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ParamSelect, PrintButton, ExportCsvButton } from "@/components/reports/report-tools";
 import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
 import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Branch Landed Cost" };
 const PACKS = ["50", "25", "5"];
@@ -19,7 +20,8 @@ export default async function BranchLandedCostPage(props: { searchParams: Promis
   await requirePermissionPage("inventory.view_cost");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
-  const branch = str(sp, "branch"), pack = str(sp, "pack") || "50", q = str(sp, "q").toLowerCase();
+  const { branch, branchParam } = pageBranch(ctx, sp);
+  const pack = str(sp, "pack") || "50", q = str(sp, "q").toLowerCase();
   const page = pageOf(sp);
   const size = pageSizeOf(sp);
   const scope = ctx.user.isOwner ? null : ctx.user.branchIds;
@@ -36,10 +38,10 @@ export default async function BranchLandedCostPage(props: { searchParams: Promis
           header={["Branch", "SKU", "Product", "Qty", "Stock value", "Inventory cost per unit", "Per kg", `Per ${pack} kg`, "Last incoming transfer per unit", "Approved selling price"]}
           rows={all.map((r) => [r.branch, r.sku, r.name, r.qty, r.value, r.avgCost, r.perKg ?? "", r.perKg == null ? "" : r.perKg * packKg, r.lastIncomingUnit ?? "", r.sellingPrice])} /></div>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <ParamSelect param="branch" value={branch} placeholder="All my branches" options={branches.map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` }))} />
+        <ParamSelect param="branch" value={branchParam} placeholder="All my branches" options={branches.map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` }))} />
         <ParamSelect param="pack" value={pack} placeholder="Pack size" options={PACKS.map((p) => ({ id: p, label: `Per ${p} kg bag` }))} />
         <form className="print-hide"><input name="q" defaultValue={q} placeholder="Search SKU / name" className="h-8 rounded-md border border-input bg-card px-2 text-sm" />
-          {branch && <input type="hidden" name="branch" value={branch} />}<input type="hidden" name="pack" value={pack} /></form>
+          <input type="hidden" name="branch" value={branchParam} /><input type="hidden" name="pack" value={pack} /></form>
       </div>
       {all.length === 0 ? <EmptyState title="No stock on hand" /> : (
         <Card className="overflow-x-auto">
@@ -66,7 +68,7 @@ export default async function BranchLandedCostPage(props: { searchParams: Promis
           </Table>
         </Card>
       )}
-      <Pager basePath="/reports/branch-landed-cost" params={{ branch, pack, q }} page={page} pageSize={size} total={all.length} />
+      <Pager basePath="/reports/branch-landed-cost" params={{ branch: branchParam, pack, q }} page={page} pageSize={size} total={all.length} />
     </div>
   );
 }

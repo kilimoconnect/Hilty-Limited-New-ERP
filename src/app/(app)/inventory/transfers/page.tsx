@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { ExportCsvButton, ParamSelect } from "@/components/reports/report-tools";
 import { Pager, pageOf, str, pageSizeOf } from "@/components/reports/pager";
+import { pageBranch } from "@/lib/branch-filter";
 
 export const metadata: Metadata = { title: "Stock Transfers" };
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -26,7 +27,7 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
   await requirePermissionPage("inventory.transfer_view");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
-  const view = str(sp, "view"), branchF = str(sp, "branch"), page = pageOf(sp), size = pageSizeOf(sp);
+  const view = str(sp, "view"), { branch: branchF, branchParam: branchFParam } = pageBranch(ctx, sp), page = pageOf(sp), size = pageSizeOf(sp);
   const inTransit = view !== "all";
   const admin = createAdminClient();
   const myBranches = ctx.user.isOwner ? ctx.branches.map((b) => b.id) : ctx.user.branchIds;
@@ -71,7 +72,7 @@ export default async function TransfersPage(props: { searchParams: SearchParams 
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <Link href="/inventory/transfers" className={`rounded-md px-3 py-1.5 ${inTransit ? "bg-primary text-primary-foreground" : "border border-border"}`}>In transit / open</Link>
         <Link href="/inventory/transfers?view=all" className={`rounded-md px-3 py-1.5 ${!inTransit ? "bg-primary text-primary-foreground" : "border border-border"}`}>All transfers</Link>
-        <ParamSelect param="branch" value={branchF} placeholder="All my branches" options={ctx.branches.filter((b) => myBranches.includes(b.id)).map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` }))} />
+        <ParamSelect param="branch" value={branchFParam} placeholder="All my branches" options={ctx.branches.filter((b) => myBranches.includes(b.id)).map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` }))} />
         <span className="ml-auto"><ExportCsvButton filename="in-transit.csv"
           header={["Transfer", "From", "To", "Status", "Trip", "Driver", "Driver phone", "Vehicle", "Agents", "Dispatched", "ETA", "Overdue", "Dispatched qty", "Received qty"]}
           rows={filtered.flatMap((r) => (r.trips.length ? r.trips : [null]).map((t) => [r.document_number ?? "draft", r.source?.code ?? "", r.dest?.code ?? "", r.status,
