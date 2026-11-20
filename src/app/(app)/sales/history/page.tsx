@@ -13,6 +13,7 @@ import { ListToolbar } from "@/components/common/list-toolbar";
 import { DocStatusBadge, PayStatusBadge } from "@/components/common/doc-status-badge";
 import { formatMoney, formatDate } from "@/lib/format";
 import { pageBranch } from "@/lib/branch-filter";
+import { backOf, selfPath, withBack } from "@/lib/back-link";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -26,6 +27,8 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
   const admin = createAdminClient();
 
   const sp = await props.searchParams;
+  // Opened documents can come back to this exact list (filters and page).
+  const here = selfPath("/sales/history", sp);
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const status = typeof sp.status === "string" ? sp.status : "";
   const pay = typeof sp.pay === "string" ? sp.pay : "";
@@ -98,7 +101,7 @@ export default async function SalesHistoryPage(props: { searchParams: SP }) {
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <ClickableRow key={r.id} href={`/sales/${r.id}`}>
+                <ClickableRow key={r.id} href={withBack(`/sales/${r.id}`, here, "Sales History")}>
                   <TableCell className="text-sm">{formatDate(r.document_date)}</TableCell>
                   <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
                   <TableCell className="text-sm">{r.branch?.code}</TableCell>

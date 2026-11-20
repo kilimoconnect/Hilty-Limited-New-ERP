@@ -16,6 +16,7 @@ import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { pageBranch } from "@/lib/branch-filter";
+import { backOf, selfPath, withBack } from "@/lib/back-link";
 
 export const metadata: Metadata = { title: "Purchase History" };
 type SP = Promise<Record<string, string | string[] | undefined>>;
@@ -30,6 +31,8 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
   const canReturn = can(ctx.user, "purchases.create_return");
 
   const sp = await props.searchParams;
+  // Opened documents can come back to this exact list (filters and page).
+  const here = selfPath("/purchases/history", sp);
   const page = pageOf(sp);
   const size = pageSizeOf(sp);
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
@@ -92,7 +95,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
             </TableRow></TableHeader>
             <TableBody>
               {rows.map((r) => (
-                <ClickableRow key={r.id} href={`/purchases/${r.id}`}>
+                <ClickableRow key={r.id} href={withBack(`/purchases/${r.id}`, here, "Purchase History")}>
                   <TableCell className="text-sm">{formatDate(r.document_date)}</TableCell>
                   <TableCell className="text-sm">{r.branch?.code ?? "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}

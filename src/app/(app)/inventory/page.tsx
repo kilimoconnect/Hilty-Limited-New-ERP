@@ -12,6 +12,7 @@ import { ListToolbar } from "@/components/common/list-toolbar";
 import { ClickableRow } from "@/components/common/clickable-row";
 import { formatMoney, formatQuantity } from "@/lib/format";
 import { pageBranch } from "@/lib/branch-filter";
+import { backOf, selfPath, withBack } from "@/lib/back-link";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -27,6 +28,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
   const admin = createAdminClient();
 
   const sp = await props.searchParams;
+  const here = selfPath("/inventory", sp);
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   // No ?branch= -> the header branch; ?branch=all -> every branch of the user.
   const { branch, branchParam } = pageBranch(ctx, sp);
@@ -113,7 +115,7 @@ export default async function InventoryPage(props: { searchParams: SP }) {
                 const lowStock = Number(r.quantity) <= Number(r.product?.reorder_level ?? 0);
                 return (
                   // Click a row: that item's Kardex at this branch.
-                  <ClickableRow key={r.id} href={`/inventory/kardex?product=${r.product_id}&branch=${r.branch_id}`} title="Open this item's Kardex">
+                  <ClickableRow key={r.id} href={withBack(`/inventory/kardex?product=${r.product_id}&branch=${r.branch_id}`, here, "Current Stock")} title="Open this item's Kardex">
                     <TableCell className="font-mono text-xs">{r.product?.sku}</TableCell>
                     <TableCell>
                       <div className="font-medium text-primary">{r.product?.name}</div>

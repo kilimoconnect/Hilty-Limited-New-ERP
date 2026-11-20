@@ -13,6 +13,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ListToolbar } from "@/components/common/list-toolbar";
 import { formatMoney, formatQuantity, formatDateTime, localDayStart, localDayEnd } from "@/lib/format";
 import { pageBranch } from "@/lib/branch-filter";
+import { safePath } from "@/lib/back-link";
+import { BackButton } from "@/components/common/back-button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -40,6 +42,9 @@ export default async function KardexPage(props: { searchParams: SP }) {
   const { branch, branchParam } = pageBranch(ctx, sp);
   const type = typeof sp.type === "string" ? sp.type : "";
   // One item's Kardex (opened by clicking an item).
+  // Opened from a sale, purchase or Current Stock: a Back button to that page.
+  const backHref = safePath(typeof sp.back === "string" ? sp.back : null);
+  const backLabel = typeof sp.backLabel === "string" && sp.backLabel ? sp.backLabel : "previous page";
   const productId = typeof sp.product === "string" && /^[0-9a-f-]{36}$/i.test(sp.product) ? sp.product : "";
   const page = pageOf(sp);
   const size = pageSizeOf(sp);
@@ -94,6 +99,7 @@ export default async function KardexPage(props: { searchParams: SP }) {
 
   return (
     <div>
+      {backHref && <BackButton href={backHref} label={backLabel} />}
       <PageHeader title={item ? `Kardex — ${item.name}` : "Kardex"}
         description={item ? `${item.sku} · ${branchName ? `${branchName.code} — ${branchName.name}` : "all branches"}. Every movement of this item, newest first.` : "Immutable stock-movement ledger. Click an item to open its own Kardex."}
         actions={item ? <Link href="/inventory/kardex" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"><ArrowLeft className="h-4 w-4" /> All items</Link> : undefined} />
@@ -164,7 +170,7 @@ export default async function KardexPage(props: { searchParams: SP }) {
         </div>
       )}
 
-      <Pager basePath="/inventory/kardex" params={{ q, branch: branchParam, type, product: productId, from: from_, to: to_ }} page={page} pageSize={size} total={total} />
+      <Pager basePath="/inventory/kardex" params={{ q, branch: branchParam, type, product: productId, from: from_, to: to_, back: backHref ?? "", backLabel: backHref ? backLabel : "" }} page={page} pageSize={size} total={total} />
     </div>
   );
 }

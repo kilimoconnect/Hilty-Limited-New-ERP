@@ -15,14 +15,20 @@ import { formatMoney, formatQuantity, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplyCreditPanel, type CreditOpt } from "./apply-credit";
 import { PrintLink } from "@/components/print/print-link";
+import { backOf, selfPath, withBack } from "@/lib/back-link";
+import { BackButton } from "@/components/common/back-button";
 
 export const metadata: Metadata = { title: "Purchase" };
 type Params = Promise<{ id: string }>;
 
-export default async function PurchaseDetailPage(props: { params: Params }) {
+export default async function PurchaseDetailPage(props: { params: Params; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePermissionPage("purchases.view");
   const ctx = await getActiveContext();
   const { id } = await props.params;
+  const sp = await props.searchParams;
+  const back = backOf(sp, "/purchases/history", "Purchase History");
+  // The Kardex comes back here, and from here back to the same list.
+  const here = selfPath(`/purchases/${id}`, sp);
   const admin = createAdminClient();
   const showCost = can(ctx.user, "purchases.view_cost");
 
@@ -68,6 +74,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
 
   return (
     <div>
+      <BackButton href={back.href} label={back.label} />
       <PageHeader title={s.document_number ?? "Purchase (draft)"} description={`${s.branch?.name} · ${formatDate(s.document_date)}`}
         actions={
           <div className="flex items-center gap-2">
@@ -131,8 +138,8 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
           </TableRow></TableHeader>
           <TableBody>
             {ll.map((l) => (
-              <ClickableRow key={l.id} href={l.product_id ? `/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}` : ""} title={l.product_id ? "Open this item's Kardex" : undefined}>
-                <TableCell>{l.product_id ? <Link href={`/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}`} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
+              <ClickableRow key={l.id} href={l.product_id ? withBack(`/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}`, here, pur.document_number ?? "the purchase") : ""} title={l.product_id ? "Open this item's Kardex" : undefined}>
+                <TableCell>{l.product_id ? <Link href={withBack(`/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}`, here, pur.document_number ?? "the purchase")} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatQuantity(l.quantity)}</TableCell>
                 <TableCell className="text-right tabular-nums">{isFc ? `${s.currency_code} ` : ""}{formatMoney(l.unit_cost)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatMoney(l.discount)}</TableCell>

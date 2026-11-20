@@ -13,14 +13,20 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { SaleActions } from "./sale-actions";
+import { backOf, selfPath, withBack } from "@/lib/back-link";
+import { BackButton } from "@/components/common/back-button";
 
 export const metadata: Metadata = { title: "Sale" };
 type Params = Promise<{ id: string }>;
 
-export default async function SaleDetailPage(props: { params: Params }) {
+export default async function SaleDetailPage(props: { params: Params; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requirePermissionPage("sales.view");
   const ctx = await getActiveContext();
   const { id } = await props.params;
+  const sp = await props.searchParams;
+  const back = backOf(sp, "/sales/history", "Sales History");
+  // The Kardex comes back here, and from here back to the same list.
+  const here = selfPath(`/sales/${id}`, sp);
   const admin = createAdminClient();
   // Cost of sales and gross profit are for the Owner only.
   const showCost = ctx.user.isOwner;
@@ -53,6 +59,7 @@ export default async function SaleDetailPage(props: { params: Params }) {
 
   return (
     <div>
+      <BackButton href={back.href} label={back.label} />
       <PageHeader
         title={s.document_number ?? "Sale (draft)"}
         description={`${s.branch?.name} · ${formatDate(s.document_date)}`}
@@ -109,8 +116,8 @@ export default async function SaleDetailPage(props: { params: Params }) {
             </TableHeader>
             <TableBody>
               {ll.map((l) => (
-                <ClickableRow key={l.id} href={l.product_id ? `/inventory/kardex?product=${l.product_id}&branch=${sale.branch_id}` : ""} title={l.product_id ? "Open this item's Kardex" : undefined}>
-                  <TableCell>{l.product_id ? <Link href={`/inventory/kardex?product=${l.product_id}&branch=${sale.branch_id}`} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
+                <ClickableRow key={l.id} href={l.product_id ? withBack(`/inventory/kardex?product=${l.product_id}&branch=${sale.branch_id}`, here, sale.document_number ?? "the sale") : ""} title={l.product_id ? "Open this item's Kardex" : undefined}>
+                  <TableCell>{l.product_id ? <Link href={withBack(`/inventory/kardex?product=${l.product_id}&branch=${sale.branch_id}`, here, sale.document_number ?? "the sale")} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatQuantity(l.quantity)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(l.unit_price)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(l.discount)}</TableCell>
