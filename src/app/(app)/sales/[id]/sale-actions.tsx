@@ -39,7 +39,7 @@ export function SaleActions({
         <Button variant="outline" onClick={() => setConfirm("delete")}><Trash2 className="h-4 w-4" /> Delete draft</Button>
       )}
       {status === "posted" && (
-        <Button asChild variant="outline"><Link href={`/invoice/${id}`} target="_blank"><Printer className="h-4 w-4" /> Print</Link></Button>
+        <Button asChild variant="outline"><Link href={`/print/sale/${id}`} target="_blank"><Printer className="h-4 w-4" /> Print</Link></Button>
       )}
       {status === "posted" && outstanding > 0 && canReceive && (
         <Button asChild variant="outline"><Link href={`/sales/customer-payments/new?customer=${customerId}&sale=${id}`}><HandCoins className="h-4 w-4" /> Receive payment</Link></Button>

@@ -11,6 +11,7 @@ import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { isFeatureEnabled } from "@/lib/features";
 import { AttachmentsPanel } from "@/components/common/attachments-panel";
+import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Transfer" };
 type Params = Promise<{ id: string }>;
@@ -29,7 +30,7 @@ export default async function TransferDetail(props: { params: Params }) {
   return (
     <div>
       <PageHeader title={v.document_number ?? "Transfer (draft)"} description={`${v.source?.name} → ${v.dest?.name} · ${formatDate(v.transfer_date)}`}
-        actions={<TxnActions id={id} status={v.document_status} canPost={can(ctx.user, "cash_transfers.post")} canOwner={can(ctx.user, "transactions.void")} postAction={postTransfer} deleteAction={deleteTransferDraft} voidAction={voidTransfer} afterDeletePush="/cash-and-banks/transfers" postLabel="Post transfer" />} />
+        actions={<div className="flex items-center gap-2"><PrintLink kind="cash-transfer" id={id} /><TxnActions id={id} status={v.document_status} canPost={can(ctx.user, "cash_transfers.post")} canOwner={can(ctx.user, "transactions.void")} postAction={postTransfer} deleteAction={deleteTransferDraft} voidAction={voidTransfer} afterDeletePush="/cash-and-banks/transfers" postLabel="Post transfer" /></div>} />
       <Card className="max-w-lg"><CardContent className="space-y-2 p-5 text-sm">
         <div className="flex justify-between"><span className="text-muted-foreground">Status</span><DocStatusBadge status={v.document_status} /></div>
         <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="tabular-nums font-semibold">{formatMoney(v.amount)}</span></div>

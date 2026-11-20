@@ -1,6 +1,6 @@
 /**
  * Minimal PDF 1.4 writer: A4 pages, the two standard Helvetica fonts, text,
- * lines and rectangles. No dependencies and no images, so output is small and
+ * lines, rectangles and the Hilty logo (vector). No dependencies and no images, so output is small and
  * deterministic (same input, same bytes). Text is limited to WinAnsi; other
  * characters are transliterated or replaced.
  */
@@ -67,6 +67,57 @@ export class SimplePdf {
     this.cur.push(`${width} w ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re S`);
   }
 
+  /** Text in a colour (0-255 RGB). */
+  textRGB(x: number, y: number, s: string, size: number, font: Font, rgb: [number, number, number]) {
+    if (!s) return;
+    this.cur.push(`${rgbOp(rgb)} rg`);
+    this.text(x, y, s, size, font);
+    this.cur.push("0 g");
+  }
+  /** Right-aligned text in a colour. */
+  textRightRGB(x: number, y: number, s: string, size: number, font: Font, rgb: [number, number, number]) {
+    this.textRGB(x - textWidth(s, size, font), y, s, size, font, rgb);
+  }
+  /** Filled rectangle in a colour (0-255 RGB). */
+  fillRect(x: number, y: number, w: number, h: number, rgb: [number, number, number]) {
+    this.cur.push(`${rgbOp(rgb)} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f 0 g`);
+  }
+
+  /**
+   * The Hilty logo (public/brand/hilty-logo.svg) drawn as vector shapes:
+   * navy shield with the copper, blue and light bars, then the HILTY / LIMITED
+   * wordmark. (x, top) is the top-left corner; height in points.
+   */
+  hiltyLogo(x: number, top: number, height: number) {
+    const k = height / 210;                       // SVG units -> points
+    const X = (sx: number) => (x + sx * k).toFixed(2);
+    const Y = (sy: number) => (top - sy * k).toFixed(2);
+    const c = 0.5523;                              // circle -> Bezier
+    const r = 10, R = 92;
+    // Shield: rounded top corners (r 10), round bottom (two quarter circles of r 92).
+    const path = [
+      `${X(r)} ${Y(0)} m`, `${X(184 - r)} ${Y(0)} l`,
+      `${X(184 - r + r * c)} ${Y(0)} ${X(184)} ${Y(r - r * c)} ${X(184)} ${Y(r)} c`,
+      `${X(184)} ${Y(118)} l`,
+      `${X(184)} ${Y(118 + R * c)} ${X(92 + R * c)} ${Y(210)} ${X(92)} ${Y(210)} c`,
+      `${X(92 - R * c)} ${Y(210)} ${X(0)} ${Y(118 + R * c)} ${X(0)} ${Y(118)} c`,
+      `${X(0)} ${Y(r)} l`,
+      `${X(0)} ${Y(r - r * c)} ${X(r - r * c)} ${Y(0)} ${X(r)} ${Y(0)} c`, "h",
+    ].join(" ");
+    this.cur.push(`${rgbOp([30, 37, 65])} rg ${path} f 0 g`);
+    const bar = (sx: number, sy: number, w: number, h: number, rgb: [number, number, number]) =>
+      this.fillRect(x + sx * k, top - (sy + h) * k, w * k, h * k, rgb);
+    bar(48, 44, 25, 92, [192, 98, 63]);
+    bar(80, 77, 25, 59, [91, 127, 219]);
+    bar(112, 44, 25, 92, [223, 227, 236]);
+    const small = 13 * k;
+    this.textRGB(x + 92 * k - textWidth("HILTY", small, "bold") / 2, top - 164 * k, "HILTY", small, "bold", [223, 227, 236]);
+    // Wordmark
+    this.textRGB(x + 226 * k, top - 112 * k, "HILTY", 96 * k, "bold", [30, 37, 65]);
+    bar(228, 140, 46, 8, [192, 98, 63]);
+    this.textRGB(x + 292 * k, top - 150 * k, "L I M I T E D", 22 * k, "bold", [63, 71, 102]);
+  }
+
   toBytes(meta: { title?: string } = {}): Uint8Array {
     const objs: string[] = [];
     const add = (body: string) => { objs.push(body); return objs.length; };
@@ -99,3 +150,4 @@ export class SimplePdf {
 }
 
 function latin1Length(s: string) { return s.length; }
+function rgbOp([r, g, b]: [number, number, number]) { return `${(r / 255).toFixed(3)} ${(g / 255).toFixed(3)} ${(b / 255).toFixed(3)}`; }

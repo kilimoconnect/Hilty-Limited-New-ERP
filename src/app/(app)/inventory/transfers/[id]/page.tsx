@@ -16,6 +16,7 @@ import { AttachmentsPanel } from "@/components/common/attachments-panel";
 import type { AttachmentCategory } from "@/lib/attachments/policy";
 import { TransferActions, type TLine } from "./transfer-actions";
 import { TripActions, ResolveButton, AddAgentForm, AddUpdateForm, ChargeForm, ChargeRowActions } from "./transfer-file";
+import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Transfer" };
 type Params = Promise<{ id: string }>;
@@ -81,6 +82,7 @@ export default async function TransferDetailPage(props: { params: Params }) {
         description={`${t.source?.code} — ${t.source?.name} → ${t.dest?.code} — ${t.dest?.name}${isSender && isReceiver ? "" : isSender ? " · you are the sending branch" : " · you are the receiving branch"}`}
         actions={
           <div className="flex flex-wrap gap-2">
+            <PrintLink kind="stock-transfer" id={id} />
             {logistics && !legacy && canDispatch && remainingToDispatch && t.status !== "voided" &&
               <Button asChild variant="outline"><Link href={`/inventory/transfers/${id}/trips/new`}>New dispatch trip</Link></Button>}
             <TransferActions id={id} status={t.status} lines={tLines}

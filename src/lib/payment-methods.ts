@@ -39,25 +39,3 @@ export async function branchPaymentOptions(companyId: string, branchId: string):
   }
   return out;
 }
-
-/**
- * Accounts a user may move money between (cash transfers): for each branch
- * given, its assigned methods (labelled "Cash - Bunju B"), plus the banks once.
- */
-export async function transferAccountOptions(companyId: string, branchIds: string[]): Promise<{ id: string; name: string }[]> {
-  const admin = createAdminClient();
-  const [{ data: assigned }, { data: accounts }] = await Promise.all([
-    admin.from("branch_payment_methods").select("branch_id, payment_method_id").eq("company_id", companyId).in("branch_id", branchIds.length ? branchIds : ["00000000-0000-0000-0000-000000000000"]),
-    admin.from("payment_accounts").select("id, name, branch_id, payment_method_id").eq("company_id", companyId).eq("is_active", true).order("code"),
-  ]);
-  const accs = accounts ?? [];
-  const pairs = new Set((assigned ?? []).map((r) => `${r.branch_id}:${r.payment_method_id}`));
-  const methodsAnywhere = new Set((assigned ?? []).map((r) => r.payment_method_id));
-  const branchesWithMethods = new Set((assigned ?? []).map((r) => r.branch_id));
-  return accs.filter((a) => {
-    if (!a.payment_method_id) return !a.branch_id ? branchesWithMethods.size === 0 : branchIds.includes(a.branch_id) && !branchesWithMethods.has(a.branch_id);
-    if (!a.branch_id) return methodsAnywhere.has(a.payment_method_id);
-    if (!branchIds.includes(a.branch_id)) return false;
-    return branchesWithMethods.has(a.branch_id) ? pairs.has(`${a.branch_id}:${a.payment_method_id}`) : true;
-  }).map((a) => ({ id: a.id, name: a.name }));
-}

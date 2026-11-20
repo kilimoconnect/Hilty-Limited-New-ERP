@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
+import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Other Income" };
 type Params = Promise<{ id: string }>;
@@ -26,7 +27,7 @@ export default async function IncomeDetail(props: { params: Params }) {
   return (
     <div>
       <PageHeader title={e.document_number ?? "Other income (draft)"} description={`${e.income_type?.name} · ${e.branch?.name} · ${formatDate(e.document_date)}`}
-        actions={<TxnActions id={id} status={e.document_status} canPost={can(ctx.user, "other_income.post")} canOwner={can(ctx.user, "transactions.void")} postAction={postOtherIncome} deleteAction={deleteOtherIncomeDraft} voidAction={voidOtherIncome} afterDeletePush="/other-income/history" />} />
+        actions={<div className="flex items-center gap-2"><PrintLink kind="other-income" id={id} /><TxnActions id={id} status={e.document_status} canPost={can(ctx.user, "other_income.post")} canOwner={can(ctx.user, "transactions.void")} postAction={postOtherIncome} deleteAction={deleteOtherIncomeDraft} voidAction={voidOtherIncome} afterDeletePush="/other-income/history" /></div>} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card><CardContent className="space-y-2 p-5 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Status</span><DocStatusBadge status={e.document_status} /></div>

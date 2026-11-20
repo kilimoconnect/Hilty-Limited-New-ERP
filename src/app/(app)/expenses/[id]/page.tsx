@@ -11,6 +11,7 @@ import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { isFeatureEnabled } from "@/lib/features";
 import { AttachmentsPanel } from "@/components/common/attachments-panel";
+import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Expense" };
 type Params = Promise<{ id: string }>;
@@ -28,7 +29,7 @@ export default async function ExpenseDetail(props: { params: Params }) {
   return (
     <div>
       <PageHeader title={e.document_number ?? "Expense (draft)"} description={`${e.category?.name} · ${e.branch?.name} · ${formatDate(e.document_date)}`}
-        actions={<TxnActions id={id} status={e.document_status} canPost={can(ctx.user, "expenses.post")} canOwner={can(ctx.user, "transactions.void")} postAction={postExpense} deleteAction={deleteExpenseDraft} voidAction={voidExpense} afterDeletePush="/expenses/history" />} />
+        actions={<div className="flex items-center gap-2"><PrintLink kind="expense" id={id} /><TxnActions id={id} status={e.document_status} canPost={can(ctx.user, "expenses.post")} canOwner={can(ctx.user, "transactions.void")} postAction={postExpense} deleteAction={deleteExpenseDraft} voidAction={voidExpense} afterDeletePush="/expenses/history" /></div>} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card><CardContent className="space-y-2 p-5 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Status</span><DocStatusBadge status={e.document_status} /></div>

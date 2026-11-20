@@ -35,17 +35,26 @@ export function renderDeliveryNote(s: DeliveryNoteSnapshot, v: { version: number
   const L = 40, R = A4.width - 40, W = R - L;
   let y = A4.height - 50;
 
+  const NAVY: [number, number, number] = [30, 38, 65];
+  const COPPER: [number, number, number] = [192, 98, 63];
+  const SLATE: [number, number, number] = [74, 83, 115];
+  // Letterhead: Hilty logo left, company details right; then the title band.
   const header = () => {
-    y = A4.height - 50;
-    pdf.text(L, y, s.company.legal_name || s.company.name, 15, "bold");
-    pdf.textRight(R, y, "DELIVERY NOTE", 15, "bold");
-    y -= 14;
-    const contact = [s.company.address, s.company.phone, s.company.email].filter(Boolean).join("  |  ");
-    if (contact) pdf.textFit(L, y, contact, W * 0.62, 8);
-    pdf.textRight(R, y, `${s.reference}   (version ${v.version})`, 10, "bold");
-    y -= 8;
-    pdf.line(L, y, R, y, 1);
-    y -= 16;
+    const top = A4.height - 36;
+    pdf.hiltyLogo(L, top, 44);
+    const company = (s.company.legal_name || s.company.name).toUpperCase();
+    pdf.textRightRGB(R, top - 10, company, 11, "bold", NAVY);
+    let cy = top - 22;
+    for (const part of [s.company.address, [s.company.phone, s.company.email].filter(Boolean).join("  |  ")]) {
+      if (part) { pdf.textRightRGB(R, cy, part, 8, "regular", SLATE); cy -= 10; }
+    }
+    y = top - 56;
+    pdf.fillRect(L, y, 70, 2.5, COPPER);
+    pdf.fillRect(L + 70, y + 0.5, W - 70, 0.8, NAVY);
+    y -= 26;
+    pdf.textRGB(L, y, "DELIVERY NOTE", 18, "bold", NAVY);
+    pdf.textRightRGB(R, y, `${s.reference}   (version ${v.version})`, 10, "bold", SLATE);
+    y -= 22;
   };
   header();
 

@@ -7,6 +7,8 @@ import { Breadcrumbs } from "./breadcrumbs";
 import { BranchSelector, type BranchOption } from "./branch-selector";
 import { UserMenu } from "./user-menu";
 import { cn } from "@/lib/utils";
+import { ReportLetterhead } from "@/components/print/report-letterhead";
+import type { Letterhead } from "@/lib/print/letterhead";
 
 export interface ShellUser {
   fullName: string | null;
@@ -19,6 +21,7 @@ export function AppShell({
   user,
   permissions,
   companyName,
+  letterhead,
   branches,
   activeBranchId,
   children,
@@ -26,6 +29,8 @@ export function AppShell({
   user: ShellUser;
   permissions: string[];
   companyName: string;
+  /** Printed at the top of every page of the system. */
+  letterhead: Letterhead;
   branches: BranchOption[];
   activeBranchId: string | null;
   children: React.ReactNode;
@@ -138,11 +143,15 @@ export function AppShell({
           <BranchSelector branches={branches} activeBranchId={activeBranchId} />
         </div>
 
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-4 print:hidden">
           <Breadcrumbs />
         </div>
 
-        <main className="flex-1 px-4 pb-10 pt-4">{children}</main>
+        <main className="flex-1 px-4 pb-10 pt-4">
+          <ReportLetterhead company={letterhead} userName={user.fullName ?? user.email}
+            branchLabel={(() => { const b = branches.find((x) => x.id === activeBranchId); return b ? `${b.name} (${b.code})` : null; })()} />
+          {children}
+        </main>
       </div>
     </div>
   );

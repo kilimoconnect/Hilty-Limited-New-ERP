@@ -15,7 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export interface AccountOpt { id: string; name: string }
+/** A payment method of the branch; balance = what it holds at this branch (bank: the branch's share). */
+export interface AccountOpt { id: string; name: string; code?: string; balance?: number; available?: number }
 
 /** Cash transfer between tills and banks: date, from, to, amount, reference, optional slip and note; a fee under "More options". */
 export function TransferForm({ accounts, branchId, slipsOn }: { accounts: AccountOpt[]; branchId: string | null; slipsOn: boolean }) {
@@ -35,6 +36,9 @@ export function TransferForm({ accounts, branchId, slipsOn }: { accounts: Accoun
 
   const amt = Number(amount || 0);
   const fe = Number(fee || 0);
+  const from = accounts.find((a) => a.id === source);
+  const to = accounts.find((a) => a.id === dest);
+  const short = from?.available !== undefined && amt + fe > from.available + 0.001;
 
   async function submit(post: boolean) {
     const missing: string[] = [];
@@ -70,12 +74,21 @@ export function TransferForm({ accounts, branchId, slipsOn }: { accounts: Accoun
           <Input id="ct-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
         <div className="space-y-1.5"><Label>From <span className="text-destructive">*</span></Label>
           <Select value={source} onValueChange={setSource}><SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-            <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select></div>
+            <SelectContent>{accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select>
+            {from && from.balance !== undefined && (
+              <p className="text-xs text-muted-foreground">Available: <span className={`font-medium tabular-nums ${from.balance < 0 ? "text-destructive" : "text-foreground"}`}>{formatMoney(from.balance)}</span>
+                {from.available !== undefined && from.available !== from.balance && <> · with overdraft {formatMoney(from.available)}</>}</p>
+            )}</div>
         <div className="space-y-1.5"><Label>To <span className="text-destructive">*</span></Label>
           <Select value={dest} onValueChange={setDest}><SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-            <SelectContent>{accounts.filter((a) => a.id !== source).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select></div>
+            <SelectContent>{accounts.filter((a) => a.id !== source).map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select>
+            {to && to.balance !== undefined && (
+              <p className="text-xs text-muted-foreground">Balance: <span className={`font-medium tabular-nums ${to.balance < 0 ? "text-destructive" : "text-foreground"}`}>{formatMoney(to.balance)}</span>
+                {to.available !== undefined && to.available !== to.balance && <> · with overdraft {formatMoney(to.available)}</>}</p>
+            )}</div>
         <div className="space-y-1.5"><Label htmlFor="ct-amount">Amount <span className="text-destructive">*</span></Label>
-          <Input id="ct-amount" type="number" min="0" step="0.01" className="text-right tabular-nums" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
+          <Input id="ct-amount" type="number" min="0" step="0.01" className={`text-right tabular-nums ${short ? "border-destructive" : ""}`} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          {short && from && <p className="text-xs text-destructive">More than {from.name} has available at this branch ({formatMoney(from.available ?? 0)}).</p>}</div>
         <div className="space-y-1.5"><Label htmlFor="ct-ref">Reference</Label>
           <Input id="ct-ref" placeholder="Deposit slip / handover ref (optional)" value={reference} onChange={(e) => setReference(e.target.value)} /></div>
         {slipsOn && (

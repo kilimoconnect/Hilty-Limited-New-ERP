@@ -14,6 +14,7 @@ import { formatMoney, formatQuantity, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplyCreditPanel, type CreditOpt } from "./apply-credit";
 import { PriceAdjustmentForm } from "./cost-corrections";
+import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Purchase" };
 type Params = Promise<{ id: string }>;
@@ -75,6 +76,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
       <PageHeader title={s.document_number ?? "Purchase (draft)"} description={`${s.branch?.name} · ${formatDate(s.document_date)}`}
         actions={
           <div className="flex items-center gap-2">
+            <PrintLink kind="purchase" id={id} />
             {s.document_status === "posted" && Number(s.outstanding) > 0 && can(ctx.user, "purchases.record_payment") && (
               <Button asChild variant="outline"><Link href={`/purchases/supplier-payments/new?purchase=${id}`}>Record payment</Link></Button>
             )}
@@ -159,7 +161,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
         <Card><CardContent className="p-5">
           <h3 className="mb-2 text-sm font-semibold">Returns</h3>
           {(returns ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No returns.</p> : (
-            <div className="space-y-1 text-sm">{(returns ?? []).map((r) => { const rr = r as { id: string; document_number: string | null; document_date: string; total: number; fc_total: number; document_status: string }; return <div key={rr.id} className="flex justify-between"><span className="text-muted-foreground">{rr.document_number} · {formatDate(rr.document_date)} · <DocStatusBadge status={rr.document_status} /></span><span className="tabular-nums">{isFc && <>{s.currency_code} {formatMoney(rr.fc_total)} · </>}TZS {formatMoney(rr.total)}</span></div>; })}</div>
+            <div className="space-y-1 text-sm">{(returns ?? []).map((r) => { const rr = r as { id: string; document_number: string | null; document_date: string; total: number; fc_total: number; document_status: string }; return <div key={rr.id} className="flex justify-between"><span className="text-muted-foreground"><a href={`/print/purchase-return/${rr.id}`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline" title="Print debit note">{rr.document_number ?? "Draft"}</a> · {formatDate(rr.document_date)} · <DocStatusBadge status={rr.document_status} /></span><span className="tabular-nums">{isFc && <>{s.currency_code} {formatMoney(rr.fc_total)} · </>}TZS {formatMoney(rr.total)}</span></div>; })}</div>
           )}
         </CardContent></Card>
       </div>

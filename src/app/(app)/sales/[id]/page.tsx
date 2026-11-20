@@ -145,7 +145,7 @@ export default async function SaleDetailPage(props: { params: Params }) {
             <div className="space-y-1 text-sm">
               {(returns ?? []).map((r) => {
                 const rr = r as { id: string; document_number: string | null; document_date: string; total: number; document_status: string };
-                return <div key={rr.id} className="flex justify-between"><span className="text-muted-foreground">{rr.document_number} · {formatDate(rr.document_date)} · <DocStatusBadge status={rr.document_status} /></span><span className="tabular-nums">{formatMoney(rr.total)}</span></div>;
+                return <div key={rr.id} className="flex justify-between"><span className="text-muted-foreground"><a href={`/print/sales-return/${rr.id}`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline" title="Print credit note">{rr.document_number ?? "Draft"}</a> · {formatDate(rr.document_date)} · <DocStatusBadge status={rr.document_status} /></span><span className="tabular-nums">{formatMoney(rr.total)}</span></div>;
               })}
             </div>
           )}

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { formatMoney, formatDate } from "@/lib/format";
+import { PrintLink } from "@/components/print/print-link";
 
 export const metadata: Metadata = { title: "Supplier Payment" };
 type Params = Promise<{ id: string }>;
@@ -27,7 +28,7 @@ export default async function SupplierPaymentDetail(props: { params: Params }) {
 
   return (
     <div>
-      <PageHeader title={p.document_number ?? "Supplier payment"} description={`${p.supplier?.name} · ${formatDate(p.document_date)}`} />
+      <PageHeader title={p.document_number ?? "Supplier payment"} description={`${p.supplier?.name} · ${formatDate(p.document_date)}`} actions={<PrintLink kind="supplier-payment" id={id} />} />
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card><CardContent className="space-y-2 p-5 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Status</span><DocStatusBadge status={p.document_status} /></div>

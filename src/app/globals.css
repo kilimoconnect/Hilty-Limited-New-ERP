@@ -126,11 +126,35 @@
   }
 }
 
+/* Printed reports and lists (Print / Save as PDF): Hilty letterhead on top
+   (components/print/report-letterhead.tsx), A4, navy table headings, no
+   buttons, menus or page controls. */
+@page { size: A4; margin: 12mm 11mm 14mm; }
 @media print {
-  aside, header, .print-hide { display: none !important; }
+  aside, header, .print-hide, nav[aria-label="Pagination"], [data-print="hide"] { display: none !important; }
   main { padding: 0 !important; }
-  body { background: #fff !important; }
-  .report-card { box-shadow: none !important; border: none !important; }
+  html, body { background: #fff !important; }
+  body { font-size: 11px; color: #1E2641; }
+  main * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-card, main .rounded-lg, main [class*="shadow"] { box-shadow: none !important; }
+  /* Page title under the letterhead */
+  main h1 { font-size: 20px !important; font-weight: 800 !important; letter-spacing: 0.02em; color: #1E2641 !important; }
+  /* Buttons and form chrome: hidden or shown as plain text */
+  main button:not([role="combobox"]), main a[role="button"], main [data-slot="button"] { display: none !important; }
+  main input, main select, main [role="combobox"] { border: none !important; background: transparent !important; box-shadow: none !important; padding-left: 0 !important; appearance: none; -webkit-appearance: none; }
+  main [role="combobox"] svg, main input::placeholder { display: none !important; color: transparent !important; }
+  /* Tables */
+  main table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+  main thead { display: table-header-group; }
+  main thead tr { background: #1E2641 !important; }
+  main thead th { color: #fff !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.04em; font-size: 8px !important; padding: 5px 6px !important; height: auto !important; }
+  main tbody tr { break-inside: avoid; }
+  main tbody tr:nth-child(even) { background: #F7F8FB !important; }
+  main td { padding: 4px 6px !important; border-bottom: 1px solid #E1E5EF !important; }
+  /* Amounts stay on one line ("TZS 1,234.00") */
+  main td.tabular-nums, main td.text-right { white-space: nowrap; }
+  main .overflow-x-auto, main .overflow-auto { overflow: visible !important; }
+  a { color: inherit !important; text-decoration: none !important; }
 }
 
 /* Something is loading (see components/layout/navigation-progress.tsx). */

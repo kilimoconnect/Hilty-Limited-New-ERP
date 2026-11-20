@@ -3,6 +3,7 @@ import { requireActiveUser } from "@/lib/auth/guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ACTIVE_BRANCH_COOKIE } from "@/lib/auth/constants";
 import { AppShell } from "@/components/layout/app-shell";
+import { loadLetterhead } from "@/lib/print/letterhead";
 import type { BranchOption } from "@/components/layout/branch-selector";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : rows.filter((b) => user.branchIds.includes(b.id));
   }
 
+  const letterhead = companyId ? await loadLetterhead(companyId) : { name: companyName, legalName: null, address: null, phone: null, email: null };
   const accessible = new Set(branches.map((b) => b.id));
   const store = await cookies();
   const cookieBranch = store.get(ACTIVE_BRANCH_COOKIE)?.value;
@@ -62,6 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
       permissions={[...Array.from(user.permissions), ...featureMarkers]}
       companyName={companyName}
+      letterhead={letterhead}
       branches={branches}
       activeBranchId={activeBranchId}
     >

@@ -86,7 +86,7 @@ export default async function AdjustmentsPage(props: { searchParams: Promise<Rec
             <TableBody>
               {list.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{r.document_number ?? <Badge variant="muted">Draft</Badge>}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.document_number ? <a href={`/print/stock-adjustment/${r.id}`} target="_blank" rel="noopener" className="text-primary hover:underline" title="Print">{r.document_number}</a> : <Badge variant="muted">Draft</Badge>}</TableCell>
                   <TableCell className="text-sm">{r.branch?.code}</TableCell>
                   <TableCell className="text-sm">{formatDate(r.adjustment_date)}</TableCell>
                   <TableCell><Badge variant={r.direction === "increase" ? "success" : "warning"}>{r.direction === "increase" ? "Increase" : "Decrease"}</Badge></TableCell>
