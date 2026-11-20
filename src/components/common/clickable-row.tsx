@@ -27,20 +27,20 @@ export function ClickableRow({
   return (
     <TableRow
       {...props}
-      className={cn("cursor-pointer", className)}
+      className={cn(href && "cursor-pointer", className)}
       tabIndex={0}
       onClick={(e) => {
-        if (ignored(e)) return;
+        if (!href || ignored(e)) return;
         if (e.ctrlKey || e.metaKey || e.shiftKey) window.open(href, "_blank", "noopener");
         else router.push(href);
       }}
       onAuxClick={(e) => {
-        if (e.button === 1 && !ignored(e)) window.open(href, "_blank", "noopener");
+        if (href && e.button === 1 && !ignored(e)) window.open(href, "_blank", "noopener");
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && e.target === e.currentTarget) router.push(href);
+        if (href && e.key === "Enter" && e.target === e.currentTarget) router.push(href);
       }}
-      onMouseEnter={() => router.prefetch(href)}
+      onMouseEnter={() => { if (href) router.prefetch(href); }}
     >
       {children}
     </TableRow>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { notFound } from "next/navigation";
 import { requirePermissionPage } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
@@ -130,7 +131,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
           </TableRow></TableHeader>
           <TableBody>
             {ll.map((l) => (
-              <TableRow key={l.id}>
+              <ClickableRow key={l.id} href={l.product_id ? `/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}` : ""} title={l.product_id ? "Open this item's Kardex" : undefined}>
                 <TableCell>{l.product_id ? <Link href={`/inventory/kardex?product=${l.product_id}&branch=${pur.branch_id}`} className="text-primary hover:underline" title="Open this item's Kardex">{l.description}</Link> : l.description}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatQuantity(l.quantity)}</TableCell>
                 <TableCell className="text-right tabular-nums">{isFc ? `${s.currency_code} ` : ""}{formatMoney(l.unit_cost)}</TableCell>
@@ -139,7 +140,7 @@ export default async function PurchaseDetailPage(props: { params: Params }) {
                 {isFc && <TableCell className="text-right tabular-nums">{l.fc_gross_amount == null ? "—" : formatMoney(l.fc_gross_amount)}</TableCell>}
                 <TableCell className="text-right tabular-nums">{formatMoney(l.net_amount)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatMoney(l.gross_amount)}</TableCell>
-              </TableRow>
+              </ClickableRow>
             ))}
           </TableBody>
         </Table>
