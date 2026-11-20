@@ -76,6 +76,7 @@ export default async function TransfersPage(props: { searchParams: Promise<Recor
                   <TableCell><DocStatusBadge status={r.document_status} /></TableCell>
                   <TableCell className="text-right">
                     <TxnActions id={r.id} status={r.document_status} canPost={canPost} canOwner={canOwner}
+                      editHref={can(ctx.user, "cash_transfers.edit_draft") ? `/cash-and-banks/transfers/${r.id}/edit` : undefined}
                       postAction={postTransfer} deleteAction={deleteTransferDraft} voidAction={voidTransfer} afterDeletePush="/cash-and-banks/transfers"
                       postLabel="Post transfer" extraItems={[{ label: "View", href: `/cash-and-banks/transfers/${r.id}` }]} />
                   </TableCell>

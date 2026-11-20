@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MoreHorizontal, Send, Trash2, Ban } from "lucide-react";
+import { MoreHorizontal, Send, Trash2, Ban, Pencil } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -12,12 +12,24 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type Res = { ok: boolean; error?: string };
 
+/** The "Edit draft" button shown beside Post on a draft document's page. */
+export function EditDraftButton({ href, status }: { href: string; status: string }) {
+  if (status !== "draft") return null;
+  return (
+    <Link href={href} className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted">
+      <Pencil className="h-4 w-4" /> Edit draft
+    </Link>
+  );
+}
+
 export function TxnActions({
   id, status, canPost, canOwner,
   postAction, deleteAction, voidAction,
   postLabel = "Post", afterDeletePush,
-  extraItems = [],
+  extraItems = [], editHref,
 }: {
+  /** Shown as "Edit draft" next to Post while the document is a draft. */
+  editHref?: string;
   id: string;
   status: string;
   canPost?: boolean;
@@ -59,6 +71,9 @@ export function TxnActions({
           ))}
           {status === "draft" && canPost && postAction && (
             <DropdownMenuItem onClick={doPost}><Send className="h-4 w-4" /> {postLabel}</DropdownMenuItem>
+          )}
+          {status === "draft" && editHref && (
+            <DropdownMenuItem asChild><Link href={editHref}><Pencil className="h-4 w-4" /> Edit draft</Link></DropdownMenuItem>
           )}
           {status === "draft" && canOwner && deleteAction && (
             <DropdownMenuItem variant="destructive" onClick={() => setConfirm("delete")}>

@@ -4,16 +4,16 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Send, Ban, Trash2, Printer, RotateCcw, HandCoins } from "lucide-react";
+import { Send, Ban, Trash2, Printer, RotateCcw, HandCoins, Pencil } from "lucide-react";
 import { postSale, voidSale, deleteSaleDraft } from "@/lib/sales/actions";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function SaleActions({
-  id, status, outstanding, customerId, canPost, canVoid, canDelete, canReceive, canReturn,
+  id, status, outstanding, customerId, canPost, canEdit = false, canVoid, canDelete, canReceive, canReturn,
 }: {
   id: string; status: string; outstanding: number; customerId: string;
-  canPost: boolean; canVoid: boolean; canDelete: boolean; canReceive: boolean; canReturn: boolean;
+  canPost: boolean; canEdit?: boolean; canVoid: boolean; canDelete: boolean; canReceive: boolean; canReturn: boolean;
 }) {
   const router = useRouter();
   const [confirm, setConfirm] = React.useState<null | "delete" | "void">(null);
@@ -35,6 +35,9 @@ export function SaleActions({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {status === "draft" && canPost && <Button onClick={doPost} disabled={pending}><Send className="h-4 w-4" /> Post</Button>}
+      {status === "draft" && canEdit && (
+        <Button asChild variant="outline"><Link href={`/sales/${id}/edit`}><Pencil className="h-4 w-4" /> Edit draft</Link></Button>
+      )}
       {status === "draft" && canDelete && (
         <Button variant="outline" onClick={() => setConfirm("delete")}><Trash2 className="h-4 w-4" /> Delete draft</Button>
       )}

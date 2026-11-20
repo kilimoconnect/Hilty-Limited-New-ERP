@@ -79,6 +79,7 @@ export default async function IncomeHistoryPage(props: { searchParams: SP }) {
                   <TableCell><DocStatusBadge status={r.document_status} /></TableCell>
                   <TableCell className="text-right">
                     <TxnActions id={r.id} status={r.document_status} canPost={canPost} canOwner={canOwner}
+                      editHref={can(ctx.user, "other_income.edit_draft") ? `/other-income/${r.id}/edit` : undefined}
                       postAction={postOtherIncome} deleteAction={deleteOtherIncomeDraft} voidAction={voidOtherIncome} afterDeletePush="/other-income/history"
                       extraItems={[{ label: "View", href: `/other-income/${r.id}` }]} />
                   </TableCell>

@@ -15,24 +15,56 @@ import { branchStep } from "@/lib/branch-step";
 import { BranchChoice, ChosenBranch } from "@/components/layout/branch-choice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { PurchaseForm, type AdvanceOpt, type OrderPrefill } from "./purchase-form";
+import { PurchaseForm, type AdvanceOpt, type OrderPrefill, type PurchaseInitial } from "./purchase-form";
+import { notFound, redirect } from "next/navigation";
+import { BackButton } from "@/components/common/back-button";
 
 export const metadata: Metadata = { title: "Create Purchase" };
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function NewPurchasePage(props: { searchParams: SP }) {
-  await requirePermissionPage("purchases.create");
-  const base = await getActiveContext();
   const sp = await props.searchParams;
+  const draftId = typeof sp.draft === "string" ? sp.draft : null;
+  await requirePermissionPage(draftId ? "purchases.edit_draft" : "purchases.create");
+  const base = await getActiveContext();
   const admin = createAdminClient();
   let ctx = base;
 
+  // Edit draft: the draft's branch, supplier, lines and payment.
+  let initial: PurchaseInitial | undefined;
+  let draftOrderId: string | null = null;
+  if (draftId) {
+    const { data: d } = await admin.from("purchases")
+      .select("id, company_id, branch_id, document_status, document_date, supplier_id, supplier_invoice_number, supplier_invoice_date, internal_reference, due_date, currency_code, exchange_rate, rate_source, rate_reference, purchase_order_id")
+      .eq("id", draftId).maybeSingle();
+    if (!d || d.company_id !== base.companyId) notFound();
+    if (d.document_status !== "draft") redirect(`/purchases/${draftId}`);
+    if (!base.branches.some((x) => x.id === d.branch_id)) notFound();
+    const [{ data: dl }, { data: dp }, { data: da }] = await Promise.all([
+      admin.from("purchase_lines").select("product_id, quantity, unit_cost, tax_code_id").eq("purchase_id", draftId).order("line_no"),
+      admin.from("purchase_payments").select("payment_account_id, amount").eq("purchase_id", draftId),
+      admin.from("purchase_advance_applications").select("advance_id, fc_amount").eq("purchase_id", draftId),
+    ]);
+    const pays = dp ?? [];
+    initial = {
+      purchaseId: draftId, documentDate: d.document_date, supplierId: d.supplier_id,
+      invNo: d.supplier_invoice_number ?? "", invDate: d.supplier_invoice_date ?? "", reference: d.internal_reference ?? "", dueDate: d.due_date ?? "",
+      currency: d.currency_code ?? "TZS", rate: Number(d.exchange_rate ?? 1),
+      rateSource: d.rate_source === "rate_table" ? "rate_table" : "manual", rateRef: d.rate_reference ?? "",
+      lines: (dl ?? []).filter((l) => l.product_id).map((l) => ({ product_id: l.product_id as string, quantity: Number(l.quantity), unit_cost: Number(l.unit_cost), tax_code_id: l.tax_code_id })),
+      payment: pays.length ? { payment_account_id: pays[0].payment_account_id, amount: pays.reduce((s, p) => s + Number(p.amount), 0) } : null,
+      advances: Object.fromEntries((da ?? []).map((a) => [a.advance_id, Number(a.fc_amount)])),
+    };
+    draftOrderId = d.purchase_order_id;
+    ctx = { ...base, branchId: d.branch_id };
+  }
+
   // Receiving against a purchase order: the order's branch. Otherwise users with
   // several branches choose the branch first.
-  const orderId = typeof sp.order === "string" ? sp.order : null;
+  const orderId = draftOrderId ?? (typeof sp.order === "string" && !draftId ? sp.order : null);
   let order: OrderPrefill | undefined;
-  if (!orderId) {
+  if (!orderId && !draftId) {
     const step = branchStep(base, sp);
     if (step.choose) return <BranchChoice title="Create Purchase" branches={base.branches} current={base.branchId} />;
     ctx = step.ctx;
@@ -42,7 +74,7 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
     const { data: po } = await admin.from("purchase_orders")
       .select("id, company_id, branch_id, supplier_id, document_number, status, lines:purchase_order_lines(product_id, quantity, qty_received, line_no)")
       .eq("id", orderId).maybeSingle();
-    const pending = po && po.company_id === ctx.companyId && ["confirmed", "partially_received"].includes(po.status);
+    const pending = po && po.company_id === ctx.companyId && (!!draftId || ["confirmed", "partially_received"].includes(po.status));
     if (!pending) return <div><PageHeader title="Create Purchase" /><EmptyState title="This purchase order is not pending" description="It may have been received in full, closed, or removed after 30 days." /></div>;
     if (!base.branches.some((x) => x.id === po.branch_id)) {
       return <div><PageHeader title="Create Purchase" /><EmptyState title="This order belongs to a branch you do not work in" description="Goods are received at the branch that ordered them." /></div>;
@@ -87,8 +119,9 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
 
   return (
     <div>
-      <PageHeader title={order ? "Receive Purchase Order" : "Create Purchase"}
-        description={<ChosenBranch branch={branch} canChange={!order && base.branches.length > 1} />}
+      {initial && <BackButton href={`/purchases/${initial.purchaseId}`} label="Draft" />}
+      <PageHeader title={initial ? "Edit Purchase Draft" : order ? "Receive Purchase Order" : "Create Purchase"}
+        description={<ChosenBranch branch={branch} canChange={!order && !initial && base.branches.length > 1} />}
         actions={<div className="flex gap-2">
           {!order && can(ctx.user, "purchases.order") && <Button asChild variant="outline" size="sm"><Link href="/purchases/orders">Purchase orders</Link></Button>}
           <Button asChild variant="outline" size="sm"><Link href="/purchases/history">Purchases History</Link></Button>
@@ -99,7 +132,7 @@ export default async function NewPurchasePage(props: { searchParams: SP }) {
         accounts={branchAccounts as never} suppliers={(suppliers ?? []).map((s) => ({ ...s, payment_terms_days: Number(s.payment_terms_days ?? 0) }))}
         currencies={(currencies ?? []) as never} fxAllowed={fxAllowed}
         tableRates={((rates ?? []) as Array<{ currency_code: string; rate_date: string; rate: number }>).map((r) => ({ currency: r.currency_code, date: r.rate_date, rate: Number(r.rate) }))}
-        advances={advanceOpts} categories={categories ?? []} brands={brands ?? []} units={units ?? []} lastCosts={lastCosts} order={order} />
+        advances={advanceOpts} categories={categories ?? []} brands={brands ?? []} units={units ?? []} lastCosts={lastCosts} order={order} initial={initial} />
     </div>
   );
 }

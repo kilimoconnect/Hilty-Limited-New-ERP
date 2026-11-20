@@ -34,6 +34,15 @@ export interface OrderPrefill {
   lines: { product_id: string; ordered: number; received: number }[];
 }
 
+/** A saved draft loaded into the form (Edit draft). */
+export interface PurchaseInitial {
+  purchaseId: string; documentDate: string; supplierId: string; invNo: string; invDate: string; reference: string; dueDate: string;
+  currency: string; rate: number; rateSource: "manual" | "rate_table"; rateRef: string;
+  lines: { product_id: string; quantity: number; unit_cost: number; tax_code_id: string | null }[];
+  payment: { payment_account_id: string; amount: number } | null;
+  advances: Record<string, number>;
+}
+
 interface Line { key: string; product_id: string; quantity: string; unit_cost: string; tax_code_id: string }
 type PayMode = "paid" | "partial" | "credit";
 const NONE = "__none__";
@@ -42,8 +51,9 @@ const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:0
 
 export function PurchaseForm({
   branchId, products: initialProducts, taxCodes, accounts, suppliers: initialSuppliers, currencies = [], fxAllowed = false,
-  tableRates = [], advances = [], categories = [], brands = [], units = [], lastCosts = {}, order,
+  tableRates = [], advances = [], categories = [], brands = [], units = [], lastCosts = {}, order, initial,
 }: {
+  initial?: PurchaseInitial;
   branchId: string; products: ProductOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[]; suppliers: SupplierOpt[];
   currencies?: CurrencyOpt[]; fxAllowed?: boolean; tableRates?: TableRate[]; advances?: AdvanceOpt[];
   categories?: RefOpt[]; brands?: RefOpt[]; units?: RefOpt[];
@@ -58,24 +68,38 @@ export function PurchaseForm({
   const taxMap = new Map(taxCodes.map((t) => [t.id, t]));
   const orderLine = new Map((order?.lines ?? []).map((l) => [l.product_id, l]));
 
-  const [supplierId, setSupplierId] = React.useState(order?.supplierId ?? "");
-  const [date, setDate] = React.useState(todayISO());
-  const [invNo, setInvNo] = React.useState("");
-  const [invDate, setInvDate] = React.useState("");
-  const [reference, setReference] = React.useState("");
-  const [dueDate, setDueDate] = React.useState("");
-  const [lines, setLines] = React.useState<Line[]>(() => (order?.lines ?? [])
-    .filter((l) => l.ordered - l.received > 0)
-    .map((l) => ({ key: key(), product_id: l.product_id, quantity: String(round2(l.ordered - l.received)), unit_cost: "", tax_code_id: initialProducts.find((p) => p.id === l.product_id)?.tax_code_id ?? NONE })));
-  const [mode, setMode] = React.useState<PayMode>("credit");
-  const [accountId, setAccountId] = React.useState("");
-  const [partAmount, setPartAmount] = React.useState("");
-  const [more, setMore] = React.useState(false);
-  const [currency, setCurrency] = React.useState("TZS");
-  const [rate, setRate] = React.useState("");
-  const [rateSource, setRateSource] = React.useState<"manual" | "rate_table">("manual");
-  const [rateRef, setRateRef] = React.useState("");
-  const [advApply, setAdvApply] = React.useState<Record<string, string>>({});
+  const editing = !!initial;
+  const [supplierId, setSupplierId] = React.useState(initial?.supplierId ?? order?.supplierId ?? "");
+  const [date, setDate] = React.useState(initial?.documentDate ?? todayISO());
+  const [invNo, setInvNo] = React.useState(initial?.invNo ?? "");
+  const [invDate, setInvDate] = React.useState(initial?.invDate ?? "");
+  const [reference, setReference] = React.useState(initial?.reference ?? "");
+  const [dueDate, setDueDate] = React.useState(initial?.dueDate ?? "");
+  const [lines, setLines] = React.useState<Line[]>(() => initial
+    ? initial.lines.map((l) => ({ key: key(), product_id: l.product_id, quantity: String(l.quantity), unit_cost: String(l.unit_cost), tax_code_id: l.tax_code_id ?? NONE }))
+    : (order?.lines ?? [])
+      .filter((l) => l.ordered - l.received > 0)
+      .map((l) => ({ key: key(), product_id: l.product_id, quantity: String(round2(l.ordered - l.received)), unit_cost: "", tax_code_id: initialProducts.find((p) => p.id === l.product_id)?.tax_code_id ?? NONE })));
+  const [mode, setMode] = React.useState<PayMode>(() => {
+    if (!initial?.payment || !(initial.payment.amount > 0)) return "credit";
+    // Paid in full (after advances) means Paid Now; anything less is Partial.
+    const tm = new Map(taxCodes.map((t) => [t.id, t]));
+    const grand = calcTotals(initial.lines.map((l) => {
+      const tc = l.tax_code_id ? tm.get(l.tax_code_id) : null;
+      return { quantity: l.quantity, unitPrice: l.unit_cost, discount: 0, taxRate: tc ? tc.rate : 0, taxInclusive: !!tc && tc.rate > 0 };
+    })).grand;
+    const adv = Object.values(initial.advances).reduce((s, v) => s + v, 0);
+    return initial.payment.amount >= round2(grand - adv) - 0.001 ? "paid" : "partial";
+  });
+  const [accountId, setAccountId] = React.useState(initial?.payment?.payment_account_id ?? "");
+  const [partAmount, setPartAmount] = React.useState(initial?.payment ? String(initial.payment.amount) : "");
+  const [more, setMore] = React.useState(!!initial && (!!initial.invDate || !!initial.reference || initial.currency !== "TZS"));
+  const [currency, setCurrency] = React.useState(initial?.currency ?? "TZS");
+  const [rate, setRate] = React.useState(initial && initial.currency !== "TZS" ? String(initial.rate) : "");
+  const [rateSource, setRateSource] = React.useState<"manual" | "rate_table">(initial?.rateSource ?? "manual");
+  const [rateRef, setRateRef] = React.useState(initial?.rateRef ?? "");
+  const [advApply, setAdvApply] = React.useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(initial?.advances ?? {}).map(([k, v]) => [k, String(v)])));
   const [pending, setPending] = React.useState(false);
   const [errors, setErrors] = React.useState<string[]>([]);
   const [newSupplier, setNewSupplier] = React.useState(false);
@@ -137,6 +161,7 @@ export function PurchaseForm({
     if (missing.length) return;
 
     const input: PurchaseDraftInput = {
+      purchaseId: initial?.purchaseId,
       branchId, supplierId, documentDate: date, supplierInvoiceDate: invDate || null, supplierInvoiceNumber: invNo,
       internalReference: reference, dueDate: outstanding > 0 ? dueDate || null : null,
       lines: valid.map((l) => ({ product_id: l.product_id, quantity: Number(l.quantity), unit_cost: Number(l.unit_cost || 0), discount: 0, tax_code_id: l.tax_code_id === NONE ? null : l.tax_code_id })),
@@ -171,7 +196,8 @@ export function PurchaseForm({
         <div className="space-y-1.5"><Label htmlFor="pur-date">Date</Label>
           <Input id="pur-date" type="date" className="w-44" value={date} onChange={(e) => setDate(e.target.value)} /></div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => submit(false)} disabled={pending}>Save draft</Button>
+          {editing && <Button asChild variant="outline"><Link href={`/purchases/${initial!.purchaseId}`}>Cancel edit</Link></Button>}
+          <Button variant="outline" onClick={() => submit(false)} disabled={pending}>{editing ? "Save changes" : "Save draft"}</Button>
           <Button onClick={() => submit(true)} disabled={pending}>{pending ? "Working..." : "Post (Save)"}</Button>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { createAdjustmentDraft, postAdjustment } from "@/lib/inventory/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,13 @@ import { todayISO } from "@/lib/format";
 
 const REASONS = ["Damaged goods", "Expired goods", "Theft or loss", "Physical-count difference", "Data correction", "Other"];
 
-export function NewAdjustmentButton({ products, branchId, canPost }: { products: ProductOption[]; branchId: string; canPost: boolean }) {
+/** A saved adjustment draft, opened with "Edit draft". */
+export interface AdjustmentDraft {
+  id: string; branchId: string; date: string; direction: "increase" | "decrease"; reason: string; description: string; reference: string;
+  lines: { product_id: string; quantity: number; unit_cost: number }[];
+}
+
+export function NewAdjustmentButton({ products, branchId, canPost, draft }: { products: ProductOption[]; branchId: string; canPost: boolean; draft?: AdjustmentDraft }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [date, setDate] = React.useState(todayISO());
@@ -33,6 +39,13 @@ export function NewAdjustmentButton({ products, branchId, canPost }: { products:
   const [error, setError] = React.useState<string | null>(null);
 
   function reset() {
+    if (draft) {
+      setDate(draft.date); setDirection(draft.direction); setReason(draft.reason);
+      setDescription(draft.description); setReference(draft.reference);
+      setLines(draft.lines.length ? draft.lines.map((l) => ({ ...newLine(), product_id: l.product_id, quantity: String(l.quantity), unit_cost: l.unit_cost ? String(l.unit_cost) : "" })) : [newLine()]);
+      setError(null); setPending(false);
+      return;
+    }
     setDate(todayISO()); setDirection("decrease"); setReason(REASONS[0]);
     setDescription(""); setReference(""); setLines([newLine()]); setError(null); setPending(false);
   }
@@ -43,21 +56,23 @@ export function NewAdjustmentButton({ products, branchId, canPost }: { products:
       .map((l) => ({ product_id: l.product_id, quantity: Number(l.quantity), unit_cost: Number(l.unit_cost || 0) }));
     if (parsed.length === 0) { setError("Add at least one product line."); return; }
     setPending(true);
-    const res = await createAdjustmentDraft({ branchId, adjustmentDate: date, direction, reason, description, reference, lines: parsed });
+    const res = await createAdjustmentDraft({ adjustmentId: draft?.id, branchId: draft?.branchId ?? branchId, adjustmentDate: date, direction, reason, description, reference, lines: parsed });
     if (!res.ok || !res.id) { setError(res.error ?? "Failed."); setPending(false); return; }
     if (post) {
       const p = await postAdjustment(res.id);
       if (!p.ok) { setError(p.error ?? "Draft saved but posting failed."); setPending(false); router.refresh(); return; }
       toast.success("Adjustment posted.");
-    } else toast.success("Adjustment draft saved.");
+    } else toast.success(draft ? "Draft updated." : "Adjustment draft saved.");
     setOpen(false); reset(); router.refresh();
   }
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) reset(); }}>
-      <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> New Adjustment</Button></DialogTrigger>
+      <DialogTrigger asChild>{draft
+        ? <Button variant="outline" size="sm" className="h-8"><Pencil className="h-3.5 w-3.5" /> Edit draft</Button>
+        : <Button><Plus className="h-4 w-4" /> New Adjustment</Button>}</DialogTrigger>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>Stock adjustment</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{draft ? "Edit adjustment draft" : "Stock adjustment"}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5"><Label>Date</Label>
@@ -89,7 +104,7 @@ export function NewAdjustmentButton({ products, branchId, canPost }: { products:
           </p>
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => submit(false)} disabled={pending}>Save draft</Button>
+            <Button variant="outline" onClick={() => submit(false)} disabled={pending}>{draft ? "Save changes" : "Save draft"}</Button>
             {canPost && <Button onClick={() => submit(true)} disabled={pending}>{pending ? "Working..." : "Save & Post"}</Button>}
           </div>
         </div>

@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DocStatusBadge, PayStatusBadge } from "@/components/common/doc-status-badge";
-import { TxnActions } from "@/components/common/txn-actions";
+import { TxnActions, EditDraftButton } from "@/components/common/txn-actions";
 import { formatMoney, formatQuantity, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplyCreditPanel, type CreditOpt } from "./apply-credit";
@@ -85,7 +85,9 @@ export default async function PurchaseDetailPage(props: { params: Params; search
             {s.document_status === "posted" && can(ctx.user, "purchases.create_return") && (
               <Button asChild variant="outline"><Link href={`/purchases/${id}/return`}>Return</Link></Button>
             )}
+            {can(ctx.user, "purchases.edit_draft") && <EditDraftButton href={`/purchases/${id}/edit`} status={s.document_status} />}
             <TxnActions id={id} status={s.document_status} canPost={can(ctx.user, "purchases.post")} canOwner={can(ctx.user, "transactions.void")}
+              editHref={can(ctx.user, "purchases.edit_draft") ? `/purchases/${id}/edit` : undefined}
               postAction={postPurchase} deleteAction={deletePurchaseDraft} voidAction={voidPurchase} afterDeletePush="/purchases/history" />
           </div>
         } />

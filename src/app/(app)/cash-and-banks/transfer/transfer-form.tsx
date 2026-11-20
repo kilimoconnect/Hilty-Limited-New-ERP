@@ -19,18 +19,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export interface AccountOpt { id: string; name: string; code?: string; balance?: number; available?: number }
 
 /** Cash transfer between tills and banks: date, from, to, amount, reference, optional slip and note; a fee under "More options". */
-export function TransferForm({ accounts, branchId, slipsOn }: { accounts: AccountOpt[]; branchId: string | null; slipsOn: boolean }) {
+/** A saved draft loaded into the form (Edit draft). */
+export interface TransferInitial {
+  transferId: string; date: string; source: string; dest: string; amount: number; fee: number; reference: string; note: string;
+}
+
+export function TransferForm({ accounts, branchId, slipsOn, initial }: { accounts: AccountOpt[]; branchId: string | null; slipsOn: boolean; initial?: TransferInitial }) {
   const router = useRouter();
-  const [date, setDate] = React.useState(todayISO());
-  const [source, setSource] = React.useState("");
-  const [dest, setDest] = React.useState("");
-  const [amount, setAmount] = React.useState("");
-  const [reference, setReference] = React.useState("");
-  const [note, setNote] = React.useState("");
+  const editing = !!initial;
+  const [date, setDate] = React.useState(initial?.date ?? todayISO());
+  const [source, setSource] = React.useState(initial?.source ?? "");
+  const [dest, setDest] = React.useState(initial?.dest ?? "");
+  const [amount, setAmount] = React.useState(initial ? String(initial.amount) : "");
+  const [reference, setReference] = React.useState(initial?.reference ?? "");
+  const [note, setNote] = React.useState(initial?.note ?? "");
   const [file, setFile] = React.useState<File | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
-  const [more, setMore] = React.useState(false);
-  const [fee, setFee] = React.useState("");
+  const [more, setMore] = React.useState(!!initial && initial.fee > 0);
+  const [fee, setFee] = React.useState(initial && initial.fee > 0 ? String(initial.fee) : "");
   const [pending, setPending] = React.useState(false);
   const [errors, setErrors] = React.useState<string[]>([]);
 
@@ -51,7 +57,7 @@ export function TransferForm({ accounts, branchId, slipsOn }: { accounts: Accoun
     if (missing.length) return;
 
     setPending(true);
-    const res = await saveTransferDraft({ sourceAccountId: source, destinationAccountId: dest, transferDate: date, amount: amt, fee: fe, sourceBranchId: branchId, reference, description: note });
+    const res = await saveTransferDraft({ transferId: initial?.transferId, sourceAccountId: source, destinationAccountId: dest, transferDate: date, amount: amt, fee: fe, sourceBranchId: branchId, reference, description: note });
     if (!res.ok || !res.id) { setErrors([res.error ?? "Failed."]); setPending(false); return; }
     if (file) {
       const fd = new FormData();
@@ -128,7 +134,8 @@ export function TransferForm({ accounts, branchId, slipsOn }: { accounts: Accoun
         <ul className="space-y-1 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{errors.map((e) => <li key={e}>⚠ {e}</li>)}</ul>
       )}
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => submit(false)} disabled={pending}>Save draft</Button>
+        {editing && <Button variant="ghost" onClick={() => router.push(`/cash-and-banks/transfers/${initial!.transferId}`)} disabled={pending}>Cancel edit</Button>}
+        <Button variant="outline" onClick={() => submit(false)} disabled={pending}>{editing ? "Save changes" : "Save draft"}</Button>
         <Button onClick={() => submit(true)} disabled={pending}>{pending ? "Working..." : "Post transfer"}</Button>
       </div>
     </div>

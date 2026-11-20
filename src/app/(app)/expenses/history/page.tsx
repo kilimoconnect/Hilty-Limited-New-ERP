@@ -83,6 +83,7 @@ export default async function ExpenseHistoryPage(props: { searchParams: SP }) {
                   <TableCell><DocStatusBadge status={r.document_status} /></TableCell>
                   <TableCell className="text-right">
                     <TxnActions id={r.id} status={r.document_status} canPost={canPost} canOwner={canOwner}
+                      editHref={can(ctx.user, "expenses.edit_draft") ? `/expenses/${r.id}/edit` : undefined}
                       postAction={postExpense} deleteAction={deleteExpenseDraft} voidAction={voidExpense} afterDeletePush="/expenses/history"
                       extraItems={[{ label: "View", href: `/expenses/${r.id}` }, ...(r.document_status === "posted" && Number(r.outstanding) > 0 && can(ctx.user, "purchases.record_payment") ? [{ label: "Record payment", href: `/purchases/supplier-payments/new` }] : [])]} />
                   </TableCell>

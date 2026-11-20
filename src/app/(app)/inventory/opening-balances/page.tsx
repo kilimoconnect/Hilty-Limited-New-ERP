@@ -11,7 +11,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { NewOpeningButton } from "./opening-form";
+import { NewOpeningButton, type OpeningDraft } from "./opening-form";
 import { InventoryDocActions } from "@/components/inventory/doc-actions";
 import { DocStatusBadge } from "@/components/common/doc-status-badge";
 import { pageBranch } from "@/lib/branch-filter";
@@ -37,7 +37,7 @@ export default async function OpeningBalancesPage(props: { searchParams: Promise
   const { branch, branchParam } = pageBranch(ctx, sp);
   const from_ = dateParam(sp, "from"), to_ = dateParam(sp, "to");
   let query = admin.from("inventory_openings")
-    .select("id, document_number, opening_date, reference, total_cost, document_status, branch:branches(code)", { count: "exact" })
+    .select("id, document_number, opening_date, reference, description, branch_id, total_cost, document_status, branch:branches(code)", { count: "exact" })
     .eq("company_id", ctx.companyId).order("created_at", { ascending: false }).order("id", { ascending: false })
       .range((page - 1) * size, page * size - 1);
   if (status) query = query.eq("document_status", status);
@@ -48,8 +48,18 @@ export default async function OpeningBalancesPage(props: { searchParams: Promise
   const { data: rows, count } = await query;
   const list = (rows ?? []) as unknown as Array<{
     id: string; document_number: string | null; opening_date: string; reference: string | null;
+    description: string | null; branch_id: string;
     total_cost: number; document_status: string; branch: { code: string } | null;
   }>;
+  // Drafts open in the same dialog with "Edit draft".
+  const draftIds = list.filter((r) => r.document_status === "draft" && ctx.branches.some((b) => b.id === r.branch_id)).map((r) => r.id);
+  const { data: draftLines } = draftIds.length
+    ? await admin.from("inventory_opening_lines").select("opening_id, product_id, quantity, unit_cost, line_no").in("opening_id", draftIds).order("line_no")
+    : { data: [] as { opening_id: string; product_id: string; quantity: number; unit_cost: number; line_no: number }[] };
+  const draftOf = (r: (typeof list)[number]): OpeningDraft => ({
+    id: r.id, branchId: r.branch_id, date: r.opening_date, reference: r.reference ?? "", description: r.description ?? "",
+    lines: (draftLines ?? []).filter((l) => l.opening_id === r.id).map((l) => ({ product_id: l.product_id, quantity: Number(l.quantity), unit_cost: Number(l.unit_cost) })),
+  });
 
   return (
     <div>
@@ -89,7 +99,8 @@ export default async function OpeningBalancesPage(props: { searchParams: Promise
                   <TableCell className="text-sm text-muted-foreground">{r.reference ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatMoney(r.total_cost)}</TableCell>
                   <TableCell><DocStatusBadge status={r.document_status} /></TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="whitespace-nowrap text-right">
+                    {draftIds.includes(r.id) && <NewOpeningButton products={(products ?? []) as never} branchId={r.branch_id} draft={draftOf(r)} />}
                     <InventoryDocActions kind="opening" id={r.id} status={r.document_status} canPost canOwner={canOwner} />
                   </TableCell>
                 </TableRow>

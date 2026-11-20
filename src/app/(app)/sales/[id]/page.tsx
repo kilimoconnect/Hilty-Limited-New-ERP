@@ -65,7 +65,7 @@ export default async function SaleDetailPage(props: { params: Params; searchPara
         description={`${s.branch?.name} · ${formatDate(s.document_date)}`}
         actions={
           <SaleActions id={id} status={s.document_status} outstanding={Number(s.outstanding)} customerId={s.customer_id}
-            canPost={can(ctx.user, "sales.post")} canVoid={can(ctx.user, "transactions.void")}
+            canPost={can(ctx.user, "sales.post")} canEdit={can(ctx.user, "sales.edit_draft")} canVoid={can(ctx.user, "transactions.void")}
             canDelete={can(ctx.user, "transactions.delete_draft")} canReceive={can(ctx.user, "sales.receive_payment")}
             canReturn={can(ctx.user, "sales.create_return")} />
         }

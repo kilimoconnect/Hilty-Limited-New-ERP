@@ -25,27 +25,35 @@ const NONE = "__none__";
  * payee, amount, description and an optional receipt. Supplier, VAT and
  * paying later (on credit) sit under "More options".
  */
-export function ExpenseForm({ branchId, categories, suppliers, taxCodes, accounts, receiptsOn }: {
+export interface ExpenseInitial {
+  expenseId: string; documentDate: string; accountId: string; categoryId: string; amount: number; description: string;
+  supplierId: string | null; taxCodeId: string | null; reference: string; onCredit: boolean; dueDate: string;
+}
+
+export function ExpenseForm({ branchId, categories, suppliers, taxCodes, accounts, receiptsOn, initial }: {
   branchId: string; categories: RefOpt[]; suppliers: RefOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[];
   /** Attachments are switched on and the user may upload. */
   receiptsOn: boolean;
+  /** A saved draft loaded into the form (Edit draft). */
+  initial?: ExpenseInitial;
 }) {
   const router = useRouter();
-  const [date, setDate] = React.useState(todayISO());
-  const [accountId, setAccountId] = React.useState("");
-  const [categoryId, setCategoryId] = React.useState("");
+  const editing = !!initial;
+  const [date, setDate] = React.useState(initial?.documentDate ?? todayISO());
+  const [accountId, setAccountId] = React.useState(initial?.accountId ?? "");
+  const [categoryId, setCategoryId] = React.useState(initial?.categoryId ?? "");
   const [payee, setPayee] = React.useState("");
-  const [amount, setAmount] = React.useState("");
-  const [description, setDescription] = React.useState("");
+  const [amount, setAmount] = React.useState(initial ? String(initial.amount) : "");
+  const [description, setDescription] = React.useState(initial?.description ?? "");
   const [file, setFile] = React.useState<File | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
   // More options
-  const [more, setMore] = React.useState(false);
-  const [supplierId, setSupplierId] = React.useState(NONE);
-  const [taxCodeId, setTaxCodeId] = React.useState(NONE);
-  const [reference, setReference] = React.useState("");
-  const [onCredit, setOnCredit] = React.useState(false);
-  const [dueDate, setDueDate] = React.useState("");
+  const [more, setMore] = React.useState(!!initial && (!!initial.supplierId || !!initial.taxCodeId || !!initial.reference || initial.onCredit));
+  const [supplierId, setSupplierId] = React.useState(initial?.supplierId ?? NONE);
+  const [taxCodeId, setTaxCodeId] = React.useState(initial?.taxCodeId ?? NONE);
+  const [reference, setReference] = React.useState(initial?.reference ?? "");
+  const [onCredit, setOnCredit] = React.useState(initial?.onCredit ?? false);
+  const [dueDate, setDueDate] = React.useState(initial?.dueDate ?? "");
   const [pending, setPending] = React.useState(false);
   const [errors, setErrors] = React.useState<string[]>([]);
 
@@ -68,6 +76,7 @@ export function ExpenseForm({ branchId, categories, suppliers, taxCodes, account
     if (missing.length) return;
 
     const input: ExpenseDraftInput = {
+      expenseId: initial?.expenseId,
       branchId, categoryId, supplierId: supplierId === NONE ? null : supplierId, documentDate: date, reference,
       description: [payee.trim(), description.trim()].filter(Boolean).join(" - "),
       taxCodeId: taxCodeId === NONE ? null : taxCodeId, amount: amt, dueDate: onCredit ? dueDate || null : null,
@@ -163,7 +172,8 @@ export function ExpenseForm({ branchId, categories, suppliers, taxCodes, account
         )}
         <div className="flex flex-col gap-2 pt-2">
           <Button onClick={() => submit(true)} disabled={pending}>{pending ? "Working..." : "Post expense"}</Button>
-          <Button variant="outline" onClick={() => submit(false)} disabled={pending}>Save draft</Button>
+          <Button variant="outline" onClick={() => submit(false)} disabled={pending}>{editing ? "Save changes" : "Save draft"}</Button>
+          {editing && <Button variant="ghost" onClick={() => router.push(`/expenses/${initial!.expenseId}`)} disabled={pending}>Cancel edit</Button>}
         </div>
       </CardContent></Card></div>
     </div>

@@ -108,6 +108,7 @@ export default async function PurchaseHistoryPage(props: { searchParams: SP }) {
                   <TableCell><DocStatusBadge status={r.document_status} /></TableCell>
                   <TableCell className="text-right">
                     <TxnActions id={r.id} status={r.document_status} canPost={canPost} canOwner={canOwner}
+                      editHref={can(ctx.user, "purchases.edit_draft") ? `/purchases/${r.id}/edit` : undefined}
                       postAction={postPurchase} deleteAction={deletePurchaseDraft} voidAction={voidPurchase}
                       afterDeletePush="/purchases/history"
                       extraItems={[

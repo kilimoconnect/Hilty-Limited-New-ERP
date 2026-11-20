@@ -24,6 +24,8 @@ async function guard(permission: string) {
 /* ------------------------------- Openings ------------------------------- */
 
 export async function createOpeningDraft(input: {
+  /** Set to edit an existing draft instead of creating one. */
+  openingId?: string;
   branchId: string;
   openingDate: string;
   reference?: string;
@@ -41,21 +43,29 @@ export async function createOpeningDraft(input: {
       if ((l.unit_cost ?? 0) < 0) return { ok: false, error: "Unit cost cannot be negative." };
     }
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("inventory_openings")
-      .insert({
-        company_id: ctx.companyId,
-        branch_id: input.branchId,
-        opening_date: input.openingDate,
-        reference: input.reference || null,
-        description: input.description || null,
-        created_by: user.id,
-        updated_by: user.id,
-      })
-      .select("id")
-      .single();
-    if (error) return { ok: false, error: error.message };
-    const openingId = data.id;
+    const head = {
+      company_id: ctx.companyId,
+      branch_id: input.branchId,
+      opening_date: input.openingDate,
+      reference: input.reference || null,
+      description: input.description || null,
+      updated_by: user.id,
+    };
+    let openingId: string;
+    if (input.openingId) {
+      // Edit draft: replace the header and lines of an unposted opening.
+      const { data: ex } = await admin.from("inventory_openings").select("company_id, document_status").eq("id", input.openingId).maybeSingle();
+      if (!ex || ex.company_id !== ctx.companyId) return { ok: false, error: "Opening balance not found." };
+      if (ex.document_status !== "draft") return { ok: false, error: "Only drafts can be edited." };
+      const { error } = await admin.from("inventory_openings").update(head).eq("id", input.openingId);
+      if (error) return { ok: false, error: error.message };
+      await admin.from("inventory_opening_lines").delete().eq("opening_id", input.openingId);
+      openingId = input.openingId;
+    } else {
+      const { data, error } = await admin.from("inventory_openings").insert({ ...head, created_by: user.id }).select("id").single();
+      if (error) return { ok: false, error: error.message };
+      openingId = data.id;
+    }
     await admin.from("inventory_opening_lines").insert(
       input.lines.map((l, i) => ({
         opening_id: openingId,
@@ -68,7 +78,7 @@ export async function createOpeningDraft(input: {
     );
     await writeAuditLog({
       userId: user.id, companyId: ctx.companyId, branchId: input.branchId,
-      action: "inventory.opening_draft", resourceType: "inventory_opening", resourceId: openingId,
+      action: input.openingId ? "inventory.opening_draft_edit" : "inventory.opening_draft", resourceType: "inventory_opening", resourceId: openingId,
     });
     revalidatePath("/inventory/opening-balances");
     return { ok: true, id: openingId };
@@ -118,6 +128,8 @@ export async function deleteOpeningDraft(id: string, reason: string): Promise<Rp
 /* ------------------------------ Adjustments ----------------------------- */
 
 export async function createAdjustmentDraft(input: {
+  /** Set to edit an existing draft instead of creating one. */
+  adjustmentId?: string;
   branchId: string;
   adjustmentDate: string;
   direction: "increase" | "decrease";
@@ -139,20 +151,33 @@ export async function createAdjustmentDraft(input: {
         return { ok: false, error: "Unit cost cannot be negative." };
     }
     const admin = createAdminClient();
-    const { data, error } = await admin.from("stock_adjustments").insert({
+    const head = {
       company_id: ctx.companyId, branch_id: input.branchId, adjustment_date: input.adjustmentDate,
       direction: input.direction, reason: input.reason, description: input.description || null,
-      reference: input.reference || null, created_by: user.id, updated_by: user.id,
-    }).select("id").single();
-    if (error) return { ok: false, error: error.message };
-    const adjId = data.id;
+      reference: input.reference || null, updated_by: user.id,
+    };
+    let adjId: string;
+    if (input.adjustmentId) {
+      // Edit draft: replace the header and lines of an unposted adjustment.
+      const { data: ex } = await admin.from("stock_adjustments").select("company_id, document_status").eq("id", input.adjustmentId).maybeSingle();
+      if (!ex || ex.company_id !== ctx.companyId) return { ok: false, error: "Adjustment not found." };
+      if (ex.document_status !== "draft") return { ok: false, error: "Only drafts can be edited." };
+      const { error } = await admin.from("stock_adjustments").update(head).eq("id", input.adjustmentId);
+      if (error) return { ok: false, error: error.message };
+      await admin.from("stock_adjustment_lines").delete().eq("adjustment_id", input.adjustmentId);
+      adjId = input.adjustmentId;
+    } else {
+      const { data, error } = await admin.from("stock_adjustments").insert({ ...head, created_by: user.id }).select("id").single();
+      if (error) return { ok: false, error: error.message };
+      adjId = data.id;
+    }
     await admin.from("stock_adjustment_lines").insert(
       input.lines.map((l, i) => ({
         adjustment_id: adjId, product_id: l.product_id, quantity: l.quantity,
         unit_cost: input.direction === "increase" ? (l.unit_cost ?? 0) : 0, line_no: i + 1,
       })),
     );
-    await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: input.branchId, action: "inventory.adjustment_draft", resourceType: "stock_adjustment", resourceId: adjId });
+    await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: input.branchId, action: input.adjustmentId ? "inventory.adjustment_draft_edit" : "inventory.adjustment_draft", resourceType: "stock_adjustment", resourceId: adjId });
     revalidatePath("/inventory/adjustments");
     return { ok: true, id: adjId };
   } catch (e) {

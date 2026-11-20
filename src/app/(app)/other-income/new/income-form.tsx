@@ -18,17 +18,28 @@ export interface TaxOpt { id: string; name: string; rate: number; is_inclusive: 
 export interface AccountOpt { id: string; name: string; code?: string }
 const NONE = "__none__";
 
-export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: string; types: RefOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[] }) {
+/** A saved draft loaded into the form (Edit draft). */
+export interface IncomeInitial {
+  incomeId: string; typeId: string; receivedFrom: string; documentDate: string; taxCodeId: string | null;
+  amount: number; reference: string; description: string; receipts: { payment_account_id: string; amount: number }[];
+}
+
+export function IncomeForm({ branchId, types, taxCodes, accounts, initial }: { branchId: string; types: RefOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[]; initial?: IncomeInitial }) {
   const router = useRouter();
-  const [typeId, setTypeId] = React.useState("");
-  const [receivedFrom, setReceivedFrom] = React.useState("");
-  const [date, setDate] = React.useState(todayISO());
-  const [taxCodeId, setTaxCodeId] = React.useState(NONE);
-  const [amount, setAmount] = React.useState("");
-  const [reference, setReference] = React.useState("");
-  const [description, setDescription] = React.useState("");
+  const editing = !!initial;
+  const [typeId, setTypeId] = React.useState(initial?.typeId ?? "");
+  const [receivedFrom, setReceivedFrom] = React.useState(initial?.receivedFrom ?? "");
+  const [date, setDate] = React.useState(initial?.documentDate ?? todayISO());
+  const [taxCodeId, setTaxCodeId] = React.useState(initial?.taxCodeId ?? NONE);
+  const [amount, setAmount] = React.useState(initial ? String(initial.amount) : "");
+  const [reference, setReference] = React.useState(initial?.reference ?? "");
+  const [description, setDescription] = React.useState(initial?.description ?? "");
   // Split tender, as on Create Sale: an amount per payment method of the branch.
-  const [paid, setPaid] = React.useState<Record<string, string>>({});
+  const [paid, setPaid] = React.useState<Record<string, string>>(() => {
+    const p: Record<string, string> = {};
+    for (const r of initial?.receipts ?? []) p[r.payment_account_id] = String(round2(Number(p[r.payment_account_id] || 0) + r.amount));
+    return p;
+  });
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -60,6 +71,7 @@ export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: 
     if (!(amt > 0)) { setError("Enter an amount."); return; }
     if (post && !canPost) { setError(blockers[0]); return; }
     const input: OtherIncomeDraftInput = {
+      incomeId: initial?.incomeId,
       branchId, incomeTypeId: typeId, receivedFrom, description, documentDate: date,
       taxCodeId: taxCodeId === NONE ? null : taxCodeId, amount: amt, reference,
       receipts: accounts.filter((a) => Number(paid[a.id] || 0) > 0).map((a) => ({ payment_account_id: a.id, amount: Number(paid[a.id]) })),
@@ -116,7 +128,8 @@ export function IncomeForm({ branchId, types, taxCodes, accounts }: { branchId: 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="flex flex-col gap-2 pt-2">
           <Button onClick={() => submit(true)} disabled={pending || !canPost} className="disabled:opacity-40" title={canPost ? undefined : blockers[0]}>{pending ? "Working..." : "Post (Save)"}</Button>
-          <Button variant="outline" onClick={() => submit(false)} disabled={pending}>Save draft</Button>
+          <Button variant="outline" onClick={() => submit(false)} disabled={pending}>{editing ? "Save changes" : "Save draft"}</Button>
+          {editing && <Button variant="ghost" onClick={() => router.push(`/other-income/${initial!.incomeId}`)} disabled={pending}>Cancel edit</Button>}
         </div>
       </CardContent></Card></div>
     </div>

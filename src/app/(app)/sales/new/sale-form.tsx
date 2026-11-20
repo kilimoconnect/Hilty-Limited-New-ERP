@@ -26,6 +26,12 @@ export interface AccountOpt { id: string; code: string; name: string }
 export interface CustomerOpt { id: string; code: string; name: string; is_protected: boolean; phone?: string | null }
 
 interface Line { key: string; product_id: string; quantity: string; unit_price: string; tax_code_id: string }
+/** A saved draft loaded into the form (Edit draft). */
+export interface SaleInitial {
+  saleId: string; documentDate: string; dueDate: string | null; customerId: string; walkInName: string;
+  lines: { product_id: string; quantity: number; unit_price: number; tax_code_id: string | null }[];
+  payments: { payment_account_id: string; amount: number }[];
+}
 const NONE = "__none__";
 const key = () => Math.random().toString(36).slice(2);
 
@@ -47,19 +53,27 @@ function Clock() {
  * can be posted; for a walk-in that means paid = total.
  */
 export function SaleForm({
-  branchId, branchLabel, canChangeBranch = false, products, taxCodes, accounts, customers, stock, wac, canViewCost, walkInId,
+  branchId, branchLabel, canChangeBranch = false, products, taxCodes, accounts, customers, stock, wac, canViewCost, walkInId, initial,
 }: {
   branchId: string; branchLabel: string; canChangeBranch?: boolean; products: ProductOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[];
   customers: CustomerOpt[]; stock: Record<string, number>; wac: Record<string, number>; canViewCost: boolean; walkInId: string | null;
+  initial?: SaleInitial;
 }) {
   const router = useRouter();
-  const [walkIn, setWalkIn] = React.useState(!!walkInId);
-  const [customerId, setCustomerId] = React.useState("");
-  const [walkInName, setWalkInName] = React.useState("");
-  const [date, setDate] = React.useState(todayISO());
-  const [dueDate, setDueDate] = React.useState("");
-  const [lines, setLines] = React.useState<Line[]>([]);
-  const [paid, setPaid] = React.useState<Record<string, string>>({});
+  const editing = !!initial;
+  const [walkIn, setWalkIn] = React.useState(initial ? !!walkInId && initial.customerId === walkInId : !!walkInId);
+  const [customerId, setCustomerId] = React.useState(initial && initial.customerId !== walkInId ? initial.customerId : "");
+  const [walkInName, setWalkInName] = React.useState(initial?.walkInName ?? "");
+  const [date, setDate] = React.useState(initial?.documentDate ?? todayISO());
+  const [dueDate, setDueDate] = React.useState(initial?.dueDate ?? "");
+  const [lines, setLines] = React.useState<Line[]>(() => (initial?.lines ?? []).map((l) => ({
+    key: key(), product_id: l.product_id, quantity: String(l.quantity), unit_price: String(l.unit_price), tax_code_id: l.tax_code_id ?? NONE,
+  })));
+  const [paid, setPaid] = React.useState<Record<string, string>>(() => {
+    const p: Record<string, string> = {};
+    for (const x of initial?.payments ?? []) p[x.payment_account_id] = String(round2(Number(p[x.payment_account_id] || 0) + x.amount));
+    return p;
+  });
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -112,6 +126,7 @@ export function SaleForm({
     if (validLines.length === 0) { setError("Add at least one product."); return; }
     if (!walkIn && !customerId) { setError("Choose the customer."); return; }
     const input: SaleDraftInput = {
+      saleId: initial?.saleId,
       branchId, documentDate: date, dueDate: !walkIn && balance > 0 ? dueDate || null : null,
       customerId: walkIn ? walkInId! : customerId,
       customerReference: walkIn ? walkInName.trim() : "",
@@ -142,14 +157,17 @@ export function SaleForm({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-sm text-muted-foreground"><ChosenBranch branch={{ code: branchLabel.split(" — ")[0] ?? "", name: branchLabel.split(" — ")[1] ?? "" }} canChange={canChangeBranch} /> · <Clock /></p>
+          {editing && <p className="text-sm font-semibold text-primary">Editing draft</p>}
+          <p className="text-sm text-muted-foreground"><ChosenBranch branch={{ code: branchLabel.split(" — ")[0] ?? "", name: branchLabel.split(" — ")[1] ?? "" }} canChange={canChangeBranch && !editing} /> · <Clock /></p>
           <div className="flex items-end gap-3">
             <div className="space-y-1.5"><Label htmlFor="sale-date">Date</Label>
               <Input id="sale-date" type="date" className="w-44" value={date} onChange={(e) => setDate(e.target.value)} /></div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline" size="sm"><Link href={`/sales/new?branch=${branchId}`} onClick={() => { setLines([]); setPaid({}); }}>Create New Sale</Link></Button>
+          {editing
+            ? <Button asChild variant="outline" size="sm"><Link href={`/sales/${initial!.saleId}`}>Cancel edit</Link></Button>
+            : <Button asChild variant="outline" size="sm"><Link href={`/sales/new?branch=${branchId}`} onClick={() => { setLines([]); setPaid({}); }}>Create New Sale</Link></Button>}
           <Button asChild variant="outline" size="sm"><Link href="/sales/history">Sales History</Link></Button>
           {postButton}
         </div>
@@ -270,7 +288,7 @@ export function SaleForm({
             {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
             <div className="flex flex-col gap-2 pt-2">
               {postButton}
-              <Button variant="outline" onClick={() => submit(false)} disabled={pending || validLines.length === 0}>Save draft</Button>
+              <Button variant="outline" onClick={() => submit(false)} disabled={pending || validLines.length === 0}>{editing ? "Save changes" : "Save draft"}</Button>
             </div>
           </CardContent></Card>
         </div>
