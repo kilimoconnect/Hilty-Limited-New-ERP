@@ -92,7 +92,7 @@ export function PurchaseForm({
 
   const calcIn = (l: Line) => {
     const tc = l.tax_code_id !== NONE ? taxMap.get(l.tax_code_id) : null;
-    return { quantity: Number(l.quantity || 0), unitPrice: Number(l.unit_cost || 0), discount: 0, taxRate: tc ? tc.rate : 0, taxInclusive: tc ? tc.is_inclusive : false };
+    return { quantity: Number(l.quantity || 0), unitPrice: Number(l.unit_cost || 0), discount: 0, taxRate: tc ? tc.rate : 0, taxInclusive: !!tc && tc.rate > 0 }; // prices include VAT
   };
   const computed = lines.map((l) => calcLine(calcIn(l)));
   const totals = calcTotals(lines.map(calcIn));
@@ -203,7 +203,7 @@ export function PurchaseForm({
                     {order && <th className="px-2 py-2 text-right">Pending</th>}
                     <th className="px-2 py-2 text-left">VAT</th>
                     <th className="px-2 py-2 text-right">{order ? "Qty received" : "Qty"}</th>
-                    <th className="px-2 py-2 text-right">Unit Cost{isFc ? ` (${currency})` : ""}</th>
+                    <th className="px-2 py-2 text-right">Unit Cost{isFc ? ` (${currency})` : ""} (incl. VAT)</th>
                     <th className="px-2 py-2 text-right">Line Total</th>
                     <th />
                   </tr>

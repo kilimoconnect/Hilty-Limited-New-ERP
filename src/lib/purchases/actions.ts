@@ -98,7 +98,8 @@ export async function savePurchaseDraft(input: PurchaseDraftInput): Promise<RpcR
       const tc = taxId ? tMap.get(taxId) : null;
       if (taxId && tc && tc.company_id !== ctx.companyId) throw new Error("Tax code belongs to another company.");
       const rate = tc ? Number(tc.rate) : 0;
-      const inclusive = tc ? tc.is_inclusive : false;
+      // Prices are entered including VAT (as on the old system): VAT is taken out of the price.
+      const inclusive = rate > 0;
       const recoverable = tc ? tc.is_recoverable : true;
       const r = calcLine({ quantity: l.quantity, unitPrice: l.unit_cost, discount: l.discount, taxRate: rate, taxInclusive: inclusive });
       if (r.base < 0) throw new Error("Discount exceeds the line value.");
@@ -122,7 +123,7 @@ export async function savePurchaseDraft(input: PurchaseDraftInput): Promise<RpcR
       const p = pMap.get(l.product_id)!;
       const taxId = l.tax_code_id ?? p.tax_code_id ?? null;
       const tc = taxId ? tMap.get(taxId) : null;
-      return { quantity: l.quantity, unitPrice: l.unit_cost, discount: l.discount, taxRate: tc ? Number(tc.rate) : 0, taxInclusive: tc ? tc.is_inclusive : false };
+      return { quantity: l.quantity, unitPrice: l.unit_cost, discount: l.discount, taxRate: tc ? Number(tc.rate) : 0, taxInclusive: !!tc && Number(tc.rate) > 0 };
     }));
     // Advances: same supplier and currency, open, within balance.
     const apps = (input.advanceApplications ?? []).filter((a) => a.fc_amount > 0);
