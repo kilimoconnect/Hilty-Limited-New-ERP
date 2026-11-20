@@ -5,17 +5,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { selectAll } from "@/lib/supabase/batch";
 import { Pager, pageOf, pageSizeOf } from "@/components/reports/pager";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListToolbar } from "@/components/common/list-toolbar";
-import { ClickableRow } from "@/components/common/clickable-row";
-import { formatMoney, formatQuantity } from "@/lib/format";
+import { StockTable, type StockRow } from "./stock-table";
+import { loadLetterhead } from "@/lib/print/letterhead";
+import { formatMoney } from "@/lib/format";
 import { pageBranch } from "@/lib/branch-filter";
-import { backOf, selfPath, withBack } from "@/lib/back-link";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { selfPath, withBack } from "@/lib/back-link";
 
 export const metadata: Metadata = { title: "Current Stock" };
 
@@ -72,6 +68,27 @@ export default async function InventoryPage(props: { searchParams: SP }) {
   const totalValue = all.reduce((s, r) => s + Number(r.stock_value), 0);
   const list = all.slice((page - 1) * size, page * size);
 
+  // Rows for the table and the Excel / PDF export (every matching row, not only this page).
+  const toRow = (r: Row): StockRow => {
+    const qty = Number(r.quantity);
+    return {
+      id: r.id, sku: r.product?.sku ?? "", name: r.product?.name ?? "",
+      group: [r.product?.category?.name, r.product?.brand?.name].filter(Boolean).join(" · "),
+      branchCode: r.branch?.code ?? "", branchName: r.branch?.name ?? "", unit: r.product?.unit?.symbol ?? "",
+      qty, inTransit: Number(r.qty_in_transit), avgCost: showCost ? Number(r.avg_unit_cost) : 0, value: showCost ? Number(r.stock_value) : 0,
+      status: qty < 0 ? "negative" : qty <= Number(r.product?.reorder_level ?? 0) ? "low" : r.product?.is_active === false ? "inactive" : "active",
+      href: withBack(`/inventory/kardex?product=${r.product_id}&branch=${r.branch_id}`, here, "Current Stock"),
+    };
+  };
+  const branchObj = ctx.branches.find((x) => x.id === branch);
+  const filterText = [
+    `Branch: ${branchObj ? `${branchObj.name} (${branchObj.code})` : "All branches"}`,
+    category ? `Category: ${(categories ?? []).find((c) => c.id === category)?.name ?? ""}` : "",
+    brand ? `Brand: ${(brands ?? []).find((x) => x.id === brand)?.name ?? ""}` : "",
+    low ? "Low stock only" : "", q ? `Search: "${q}"` : "",
+  ].filter(Boolean).join("  ·  ");
+  const letterhead = await loadLetterhead(ctx.companyId);
+
   return (
     <div>
       <PageHeader
@@ -96,57 +113,8 @@ export default async function InventoryPage(props: { searchParams: SP }) {
       {list.length === 0 ? (
         <EmptyState title="No stock records" description="Post an opening balance or a purchase to build stock." />
       ) : (
-        <div className="rounded-lg border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Branch</TableHead>
-                <TableHead className="text-right">On hand</TableHead>
-                <TableHead className="text-right">In transit</TableHead>
-                {showCost && <TableHead className="text-right">Avg cost</TableHead>}
-                {showCost && <TableHead className="text-right">Value</TableHead>}
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((r) => {
-                const lowStock = Number(r.quantity) <= Number(r.product?.reorder_level ?? 0);
-                return (
-                  // Click a row: that item's Kardex at this branch.
-                  <ClickableRow key={r.id} href={withBack(`/inventory/kardex?product=${r.product_id}&branch=${r.branch_id}`, here, "Current Stock")} title="Open this item's Kardex">
-                    <TableCell className="font-mono text-xs">{r.product?.sku}</TableCell>
-                    <TableCell>
-                      <div className="font-medium text-primary">{r.product?.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {[r.product?.category?.name, r.product?.brand?.name].filter(Boolean).join(" · ") || "—"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{r.branch?.code}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatQuantity(r.quantity)} {r.product?.unit?.symbol ?? ""}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {Number(r.qty_in_transit) > 0 ? formatQuantity(r.qty_in_transit) : "—"}
-                    </TableCell>
-                    {showCost && <TableCell className="text-right tabular-nums">{formatMoney(r.avg_unit_cost)}</TableCell>}
-                    {showCost && <TableCell className="text-right tabular-nums">{formatMoney(r.stock_value)}</TableCell>}
-                    <TableCell>
-                      {Number(r.quantity) < 0 ? (
-                        <Badge variant="destructive">Negative</Badge>
-                      ) : lowStock ? (
-                        <Badge variant="warning">Low</Badge>
-                      ) : (
-                        <StatusBadge active={r.product?.is_active ?? true} />
-                      )}
-                    </TableCell>
-                  </ClickableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <StockTable pageRows={list.map(toRow)} allRows={all.map(toRow)} showCost={showCost}
+          filters={filterText} company={letterhead} printedBy={ctx.user.fullName ?? ctx.user.email} />
       )}
 
       {showCost && total > 0 && (

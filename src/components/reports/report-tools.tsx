@@ -115,6 +115,79 @@ export function PrintButton() {
 }
 
 /**
+ * Builds and downloads a Hilty-style Excel workbook (logo, company, title,
+ * filters, date, navy heading row, number formats, filters, A4 page setup).
+ */
+export async function downloadExcel(opts: { filename: string; header: string[]; rows: (string | number)[][]; title?: string; filters?: string }) {
+  const { filename, header, rows } = opts;
+  const { default: ExcelJS } = await import("exceljs");
+  const title = opts.title || document.querySelector("main h1")?.textContent?.trim() || filename.replace(/\.csv$/i, "");
+  const filters = opts.filters ?? Array.from(document.querySelectorAll("[data-print-filter]")).map((e) => e.textContent?.trim()).filter(Boolean).join("   ·   ");
+  const company = document.querySelector(".report-letterhead")?.getAttribute("data-company") || "HILTY LIMITED";
+  const printed = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Dar_es_Salaam", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Hilty ERP"; wb.created = new Date();
+  const ws = wb.addWorksheet(title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Report", {
+    views: [{ state: "frozen", ySplit: 6 }],
+    pageSetup: { paperSize: 9, orientation: header.length > 7 ? "landscape" : "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
+    headerFooter: { oddFooter: `&L${company}&C${title}&RPage &P of &N` },
+  });
+  const cols = Math.max(header.length, 4);
+
+  // Logo (rows 1-3) and letterhead text to the right of it.
+  try {
+    const res = await fetch("/logo.png");
+    const buf = await res.arrayBuffer();
+    const img = wb.addImage({ buffer: buf, extension: "png" });
+    ws.addImage(img, { tl: { col: 0, row: 0 }, ext: { width: 160, height: 60 } });
+  } catch { /* the export still works without the picture */ }
+  ws.getRow(1).height = 22; ws.getRow(2).height = 22; ws.getRow(3).height = 18;
+  const textCol = Math.min(3, cols);
+  const put = (r: number, v: string, font: Partial<import("exceljs").Font>) => { const c = ws.getCell(r, textCol); c.value = v; c.font = font; };
+  put(1, company, { name: "Arial", size: 14, bold: true, color: { argb: "FF1E2641" } });
+  put(2, title, { name: "Arial", size: 12, bold: true, color: { argb: "FFC0623F" } });
+  put(3, [filters, `Printed ${printed}`].filter(Boolean).join("   ·   "), { name: "Arial", size: 9, color: { argb: "FF4A5373" } });
+  // Copper and navy rule under the letterhead
+  for (let c = 1; c <= cols; c++) ws.getCell(4, c).border = { bottom: { style: "medium", color: { argb: c <= 2 ? "FFC0623F" : "FF1E2641" } } };
+  ws.getRow(4).height = 6;
+
+  // Heading row 6, data from row 7.
+  const head = ws.getRow(6);
+  header.forEach((h, i) => {
+    const c = head.getCell(i + 1);
+    c.value = h;
+    c.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E2641" } };
+    c.alignment = { vertical: "middle", horizontal: typeof rows[0]?.[i] === "number" ? "right" : "left", wrapText: true };
+  });
+  head.height = 22;
+  rows.forEach((r, ri) => {
+    const row = ws.getRow(7 + ri);
+    r.forEach((v, i) => {
+      const c = row.getCell(i + 1);
+      c.value = v === "" ? null : v;
+      c.font = { name: "Arial", size: 10, color: { argb: "FF1E2641" } };
+      if (typeof v === "number") { c.numFmt = Number.isInteger(v) && Math.abs(v) < 1e6 && !/amount|value|total|cost|price|balance|net|vat|paid|debit|credit|profit|sales|purchases/i.test(header[i] ?? "") ? "#,##0" : "#,##0.00"; c.alignment = { horizontal: "right" }; }
+      if (ri % 2 === 1) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F5F9" } };
+      c.border = { bottom: { style: "hair", color: { argb: "FFE1E5EF" } } };
+    });
+  });
+  ws.autoFilter = { from: { row: 6, column: 1 }, to: { row: 6 + Math.max(rows.length, 1), column: header.length } };
+  header.forEach((h, i) => {
+    const longest = Math.max(h.length, ...rows.slice(0, 500).map((r) => (typeof r[i] === "number" ? (r[i] as number).toLocaleString("en-US", { maximumFractionDigits: 2 }).length + 2 : String(r[i] ?? "").length)));
+    ws.getColumn(i + 1).width = Math.min(Math.max(longest + 2, i === 0 ? 14 : 10), 48);
+  });
+
+  const out = await wb.xlsx.writeBuffer();
+  const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename.replace(/\.csv$/i, "") + ".xlsx"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
  * Exports the report as an Excel workbook in the Hilty style: logo, company,
  * report title, the filters in use and the date, then a navy heading row,
  * number formats, filters and a frozen heading. (Kept under its old name:
@@ -125,71 +198,7 @@ export function ExportCsvButton({ filename, header, rows }: { filename: string; 
   async function download() {
     setBusy(true);
     try {
-      const { default: ExcelJS } = await import("exceljs");
-      const title = document.querySelector("main h1")?.textContent?.trim() || filename.replace(/\.csv$/i, "");
-      const filters = Array.from(document.querySelectorAll("[data-print-filter]")).map((e) => e.textContent?.trim()).filter(Boolean).join("   ·   ");
-      const company = document.querySelector(".report-letterhead")?.getAttribute("data-company") || "HILTY LIMITED";
-      const printed = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Dar_es_Salaam", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
-
-      const wb = new ExcelJS.Workbook();
-      wb.creator = "Hilty ERP"; wb.created = new Date();
-      const ws = wb.addWorksheet(title.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Report", {
-        views: [{ state: "frozen", ySplit: 6 }],
-        pageSetup: { paperSize: 9, orientation: header.length > 7 ? "landscape" : "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } },
-        headerFooter: { oddFooter: `&L${company}&C${title}&RPage &P of &N` },
-      });
-      const cols = Math.max(header.length, 4);
-
-      // Logo (rows 1-3) and letterhead text to the right of it.
-      try {
-        const res = await fetch("/logo.png");
-        const buf = await res.arrayBuffer();
-        const img = wb.addImage({ buffer: buf, extension: "png" });
-        ws.addImage(img, { tl: { col: 0, row: 0 }, ext: { width: 160, height: 60 } });
-      } catch { /* the export still works without the picture */ }
-      ws.getRow(1).height = 22; ws.getRow(2).height = 22; ws.getRow(3).height = 18;
-      const textCol = Math.min(3, cols);
-      const put = (r: number, v: string, font: Partial<import("exceljs").Font>) => { const c = ws.getCell(r, textCol); c.value = v; c.font = font; };
-      put(1, company, { name: "Arial", size: 14, bold: true, color: { argb: "FF1E2641" } });
-      put(2, title, { name: "Arial", size: 12, bold: true, color: { argb: "FFC0623F" } });
-      put(3, [filters, `Printed ${printed}`].filter(Boolean).join("   ·   "), { name: "Arial", size: 9, color: { argb: "FF4A5373" } });
-      // Copper and navy rule under the letterhead
-      for (let c = 1; c <= cols; c++) ws.getCell(4, c).border = { bottom: { style: "medium", color: { argb: c <= 2 ? "FFC0623F" : "FF1E2641" } } };
-      ws.getRow(4).height = 6;
-
-      // Heading row 6, data from row 7.
-      const head = ws.getRow(6);
-      header.forEach((h, i) => {
-        const c = head.getCell(i + 1);
-        c.value = h;
-        c.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
-        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E2641" } };
-        c.alignment = { vertical: "middle", horizontal: typeof rows[0]?.[i] === "number" ? "right" : "left", wrapText: true };
-      });
-      head.height = 22;
-      rows.forEach((r, ri) => {
-        const row = ws.getRow(7 + ri);
-        r.forEach((v, i) => {
-          const c = row.getCell(i + 1);
-          c.value = v === "" ? null : v;
-          c.font = { name: "Arial", size: 10, color: { argb: "FF1E2641" } };
-          if (typeof v === "number") { c.numFmt = Number.isInteger(v) && Math.abs(v) < 1e6 && !/amount|value|total|cost|price|balance|net|vat|paid|debit|credit|profit|sales|purchases/i.test(header[i] ?? "") ? "#,##0" : "#,##0.00"; c.alignment = { horizontal: "right" }; }
-          if (ri % 2 === 1) c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F5F9" } };
-          c.border = { bottom: { style: "hair", color: { argb: "FFE1E5EF" } } };
-        });
-      });
-      ws.autoFilter = { from: { row: 6, column: 1 }, to: { row: 6 + Math.max(rows.length, 1), column: header.length } };
-      header.forEach((h, i) => {
-        const longest = Math.max(h.length, ...rows.slice(0, 500).map((r) => (typeof r[i] === "number" ? (r[i] as number).toLocaleString("en-US", { maximumFractionDigits: 2 }).length + 2 : String(r[i] ?? "").length)));
-        ws.getColumn(i + 1).width = Math.min(Math.max(longest + 2, i === 0 ? 14 : 10), 48);
-      });
-
-      const out = await wb.xlsx.writeBuffer();
-      const blob = new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = filename.replace(/\.csv$/i, "") + ".xlsx"; a.click();
-      URL.revokeObjectURL(url);
+      await downloadExcel({ filename, header, rows });
     } finally { setBusy(false); }
   }
   return (

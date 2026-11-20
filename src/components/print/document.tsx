@@ -127,7 +127,7 @@ export function DocumentPage({ doc, company, branch, printedBy, printedAt }: {
                   <tr key={i} className={i % 2 ? "bg-[#F7F8FB]" : ""}>
                     {r.map((v, j) => {
                       const c = doc.table!.columns[j];
-                      return <td key={j} className={`border-b border-[#E1E5EF] px-3 py-2 align-top ${c?.align === "right" ? "text-right tabular-nums" : c?.align === "center" ? "text-center" : ""}`}>{v ?? ""}</td>;
+                      return <td key={j} className={`whitespace-pre-line border-b border-[#E1E5EF] px-3 py-2 align-top ${c?.align === "right" ? "text-right tabular-nums" : c?.align === "center" ? "text-center" : ""}`}>{v ?? ""}</td>;
                     })}
                   </tr>
                 ))}
