@@ -29,6 +29,10 @@ export interface SuggestionRow {
   avg_6: number | null; avg_9: number | null; avg_12: number | null; avg_monthly: number;
   reorder_level: number; current_reorder_level: number;
   on_hand: number; in_transit: number; on_order: number; suggested: number;
+  /** What the averages call for, before the last-purchases minimum. */
+  need: number;
+  /** Smallest quantity in the last 5 posted purchases at the branch (null if never bought there). */
+  min_last5: number | null;
 }
 
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -72,6 +76,7 @@ export async function suggestOrder(p: SuggestParams): Promise<{ ok: true; rows: 
       avg_6: num(r.avg_6), avg_9: num(r.avg_9), avg_12: num(r.avg_12), avg_monthly: Number(r.avg_monthly),
       reorder_level: Number(r.reorder_level), current_reorder_level: Number(r.current_reorder_level),
       on_hand: Number(r.on_hand), in_transit: Number(r.in_transit), on_order: Number(r.on_order), suggested: Number(r.suggested),
+      need: Number(r.need ?? r.suggested), min_last5: num(r.min_last5),
     }));
     return { ok: true, rows };
   } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Failed." }; }

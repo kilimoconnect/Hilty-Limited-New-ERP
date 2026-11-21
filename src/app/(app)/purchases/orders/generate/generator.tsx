@@ -96,7 +96,7 @@ export function OrderGenerator({ branches, defaultBranchId, suppliers, brands, c
     const res = await suggestOrder({ branchId, ...params(), productIds: [id] });
     setBusy(null);
     if (!res.ok || res.rows.length === 0) { toast.error(res.ok ? "This product cannot be ordered (inactive or not stocked)." : res.error); return; }
-    setRows([...rows, toRow(res.rows[0], Math.max(res.rows[0].suggested, 1))]);
+    setRows([...rows, toRow(res.rows[0], Math.max(res.rows[0].suggested, res.rows[0].min_last5 ?? 1, 1))]);
   }
 
   const setRow = (k: string, patch: Partial<Row>) => setRows((rs) => rs && rs.map((r) => (r.key === k ? { ...r, ...patch } : r)));
@@ -230,7 +230,8 @@ export function OrderGenerator({ branches, defaultBranchId, suppliers, brands, c
                             <td className={`px-2 py-1.5 text-right tabular-nums ${low ? "font-medium text-destructive" : ""}`}>{q(r.on_hand)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{q(r.in_transit)}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">{q(r.on_order)}</td>
-                            <td className="px-2 py-1.5 text-right tabular-nums">{q(r.suggested)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums" title={r.min_last5 !== null ? `Smallest of the last 5 purchases: ${formatQuantity(r.min_last5)}` : "Not bought at this branch before"}>{q(r.suggested)}
+                              {r.suggested > r.need && <span className="block text-[10px] text-muted-foreground">need {formatQuantity(r.need)} · last-5 min {formatQuantity(r.min_last5 ?? 0)}</span>}</td>
                             <td className="px-1 py-1"><Input aria-label={`Order quantity for ${r.name}`} className="ml-auto h-8 w-20 text-right tabular-nums" type="number" min="0" step="1"
                               value={r.qty} onChange={(e) => setRow(r.key, { qty: e.target.value })} /></td>
                             <td className="px-1 py-1 min-w-[170px]">

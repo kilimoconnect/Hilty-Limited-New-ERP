@@ -66,7 +66,9 @@ async function main() {
     check("suggestion: on hand 40", n(s.on_hand) === 40);
     // daily = 60 / 30.4375; reorder = ceil(daily * 21) = 42; target = daily * 51 = 100.53 -> 101 - 40 = 61
     check("suggestion: reorder level = ceil(daily x (lead + safety))", n(s.reorder_level) === 42, String(s.reorder_level));
-    check("suggestion: quantity = ceil(daily x 51 - on hand)", n(s.suggested) === 61, String(s.suggested));
+    check("suggestion: need = ceil(daily x 51 - on hand)", n(s.need) === 61, String(s.need));
+    // The only purchase at the branch was 100, so the order is at least 100.
+    check("suggestion: never below the smallest of the last 5 purchases", n(s.min_last5) === 100 && n(s.suggested) === 100, JSON.stringify(s));
     check("suggestion: supplier from the last posted purchase", s.supplier_id === sup && s.supplier_source === "last_purchase");
     const sb = await sugg(prodB);
     check("suggestion: preferred supplier wins over the last purchase", sb.supplier_id === sup2 && sb.supplier_source === "preferred");
@@ -91,6 +93,7 @@ async function main() {
     check("status partly received", (await one(db, "select status from purchase_orders where id=$1", [po])) === "partially_received");
     s = await sugg(prod);
     check("suggestion: on order is what is still pending (21)", n(s.on_order) === 21, String(s.on_order));
+    check("suggestion: smallest of the last purchases (100, 40) is 40", n(s.min_last5) === 40, String(s.min_last5));
 
     const last = await purchase(sup, prod, 21, po);
     check("second delivery completes the order", (await one(db, "select status from purchase_orders where id=$1", [po])) === "received");
