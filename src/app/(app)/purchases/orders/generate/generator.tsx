@@ -58,9 +58,10 @@ export function OrderGenerator({ branches, defaultBranchId, suppliers, brands, c
   const [productIds, setProductIds] = React.useState<string[]>([]);
   const [months, setMonths] = React.useState<6 | 9 | 12>(12);
   const [basis, setBasis] = React.useState<Basis>("sales");
-  const [lead, setLead] = React.useState("14");
+  // Defaults: suppliers deliver in 3 days; an order covers 14 days of demand.
+  const [lead, setLead] = React.useState("3");
   const [safety, setSafety] = React.useState("7");
-  const [cover, setCover] = React.useState("30");
+  const [cover, setCover] = React.useState("14");
   const [rows, setRows] = React.useState<Row[] | null>(null);
   // The header branch and this picker stay in step (a new branch needs a new calculation).
   useBranchFollow((id) => { if (branches.some((b) => b.id === id)) { setBranchId(id); setRows(null); } });
@@ -167,7 +168,7 @@ export function OrderGenerator({ branches, defaultBranchId, suppliers, brands, c
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="flex max-w-3xl items-start gap-1.5 text-xs text-muted-foreground"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Average per month = quantity over the period ÷ months (shorter when the product has less history at this branch). Reorder level = daily average × (lead time + safety stock).
-            Suggested = daily average × (lead + safety + cover) − on hand − in transit − already on open orders, rounded up.</p>
+            Suggested = daily average × (lead + safety + cover) − on hand − in transit − already on open orders, rounded up; when something is needed it is never below the smallest quantity of the last 5 purchases.</p>
           <Button onClick={generate} disabled={busy !== null || !branchId}><Sparkles className="h-4 w-4" /> {busy === "gen" ? "Calculating..." : rows ? "Recalculate" : "Generate order"}</Button>
         </div>
       </CardContent></Card>
