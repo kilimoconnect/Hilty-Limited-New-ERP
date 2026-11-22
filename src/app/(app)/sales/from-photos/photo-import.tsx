@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Camera, CheckCircle2, AlertTriangle, Loader2, X, ExternalLink } from "lucide-react";
 import { createPhotoDrafts, type PhotoDraftResult } from "@/lib/photo-sales/actions";
@@ -37,6 +38,7 @@ async function toDataUrl(file: File): Promise<string> {
  * draft before posting.
  */
 export function PhotoImport({ branchId, products }: { branchId: string; products: ProductOpt[] }) {
+  const router = useRouter();
   const [photos, setPhotos] = React.useState<Photo[]>([]);
   const [reading, setReading] = React.useState(false);
   const [receipts, setReceipts] = React.useState<ReadReceipt[]>([]);
@@ -121,8 +123,15 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
   async function create() {
     setSaving(true);
     const res = await createPhotoDrafts({ branchId, receipts: ready });
+    if (!res.ok) { setSaving(false); toast.error(res.error ?? "Failed."); return; }
+    const created = res.drafts.filter((d) => d.id);
+    // One draft and nothing failed: go straight to Edit draft to add the payment.
+    if (created.length === 1 && res.drafts.length === 1) {
+      toast.success(`Sale draft created from ${created[0].numbers.length} receipt${created[0].numbers.length === 1 ? "" : "s"}. Add the payment, then post.`);
+      router.push(`/sales/${created[0].id}/edit`);
+      return;
+    }
     setSaving(false);
-    if (!res.ok) { toast.error(res.error ?? "Failed."); return; }
     setResult(res);
     const made = res.drafts.filter((d) => d.id).length;
     if (made) toast.success(`Sale draft created from ${res.drafts.filter((d) => d.id).reduce((n, d) => n + d.numbers.length, 0)} receipts. Add the payment, then post.`);
@@ -139,7 +148,7 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
             <li key={d.date} className="flex flex-wrap items-center gap-2">
               {d.id ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertTriangle className="h-4 w-4 text-destructive" />}
               <span className="font-medium">{formatDate(d.date)} · receipts {d.numbers.join(", ")}</span>
-              {d.id ? <Link href={`/sales/${d.id}`} className="inline-flex items-center gap-1 text-primary underline">Open sale draft <ExternalLink className="h-3 w-3" /></Link> : <span className="text-destructive">{d.error}</span>}
+              {d.id ? <Link href={`/sales/${d.id}/edit`} className="inline-flex items-center gap-1 text-primary underline">Edit draft (add payment) <ExternalLink className="h-3 w-3" /></Link> : <span className="text-destructive">{d.error}</span>}
             </li>
           ))}
         </ul>
