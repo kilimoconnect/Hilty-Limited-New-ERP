@@ -1,14 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { branchPaymentOptions } from "@/lib/payment-methods";
 import { makeMatcher } from "./matcher";
-import { normalizeAlias, receiptReference, round2, type PhotoReadResult, type ReadNoteLine, type ReadReceipt } from "./types";
+import { normalizeAlias, receiptReference, round2, type PhotoReadResult, type ReadReceipt } from "./types";
 
 /**
- * Reads one photo of handwritten cash-sale receipts and/or the day's notebook
- * page with an OpenAI vision model. The model sees the product list (short
- * codes), the remembered short forms, the branch's payment methods and the
- * expense categories, and answers in a fixed JSON shape. Server only: the API
+ * Reads the items on one photo of handwritten cash-sale receipts with an
+ * OpenAI vision model. The model sees the product list (short codes) and the
+ * remembered short forms, and answers in a fixed JSON shape. Server only: the API
  * key never reaches the browser.
  */
 
@@ -20,7 +18,7 @@ const isReasoning = (m: string) => /^(gpt-5|o\d)/.test(m);
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["receipts", "notebook"],
+  required: ["receipts"],
   properties: {
     receipts: {
       type: "array",
@@ -50,28 +48,11 @@ const SCHEMA = {
         },
       },
     },
-    notebook: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["date", "label", "amount", "kind", "method_code", "category_code"],
-        properties: {
-          date: { type: ["string", "null"] },
-          label: { type: "string" },
-          amount: { type: "number" },
-          kind: { type: "string", enum: ["payment", "expense"] },
-          method_code: { type: ["string", "null"], description: "Payment method code for a payment line" },
-          category_code: { type: ["string", "null"], description: "Expense category code for an expense line" },
-        },
-      },
-    },
   },
 } as const;
 
 type Raw = {
   receipts: { number: string; date: string | null; written_total: number | null; blank: boolean; lines: { qty: number; text: string; amount: number; product_code: string | null }[] }[];
-  notebook: { date: string | null; label: string; amount: number; kind: "payment" | "expense"; method_code: string | null; category_code: string | null }[];
 };
 
 export class ReaderError extends Error {}
@@ -80,25 +61,20 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new ReaderError("Reading photos is not set up yet: the OpenAI API key (OPENAI_API_KEY) is missing on the server.");
   const admin = createAdminClient();
-  const [{ data: products }, { data: aliases }, accounts, { data: categories }] = await Promise.all([
+  const [{ data: products }, { data: aliases }] = await Promise.all([
     admin.from("products").select("id, sku, name, selling_price").eq("company_id", opts.companyId).eq("is_active", true).order("name"),
     admin.from("photo_item_aliases").select("alias, product_id, uses").eq("company_id", opts.companyId).order("uses", { ascending: false }).limit(400),
-    branchPaymentOptions(opts.companyId, opts.branchId),
-    admin.from("expense_categories").select("id, code, name").eq("company_id", opts.companyId).eq("is_active", true).order("name"),
   ]);
   const prods = products ?? [];
   const codeOf = new Map(prods.map((p, i) => [p.id, `P${i + 1}`]));
   const idOfCode = new Map(prods.map((p, i) => [`P${i + 1}`, p.id]));
   const aliasMap = new Map((aliases ?? []).map((a) => [a.alias, a.product_id]));
   const match = makeMatcher(prods.map((p) => ({ id: p.id, name: p.name, price: Number(p.selling_price) })));
-  const methodByCode = new Map(accounts.map((a) => [String(a.code ?? "").toUpperCase(), a.id]));
-  const cash = accounts.find((a) => String(a.code ?? "").toUpperCase() === "CASH")?.id ?? accounts[0]?.id ?? null;
-  const catByCode = new Map((categories ?? []).map((c) => [c.code, c.id]));
 
   const prompt = [
     "You read photos from a paint and hardware shop in Tanzania (Hilty Limited).",
-    "A photo may show handwritten CASH SALE receipts (printed receipt number such as 0197, a date, lines of Qty / Particulars / Shs, and a TOTAL),",
-    "and/or a notebook page listing the day's money: how sales money was received (cash, M-Pesa, NMB bank, CRDB, Mixx, cash deposited) and small expenses (e.g. 'chakula' = food).",
+    "A photo shows handwritten CASH SALE receipts (printed receipt number such as 0197, a date, lines of Qty / Particulars / Shs, and a TOTAL).",
+    "Your job is to read the items on each receipt accurately. Ignore anything that is not a cash-sale receipt (e.g. a notebook page).",
     "",
     "Rules:",
     "- Read every receipt in the photo, including blank ones (blank=true, no lines). Use the printed number.",
@@ -119,10 +95,7 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
     "  sizes like 20l/20lt, 4lt, 1lt, 3\" = 3inch. Match colour and size. If you are not sure, return null rather than guessing.",
     "- Known short forms (always use these when the text matches):",
     ...(aliases ?? []).slice(0, 400).map((a) => `  "${a.alias}" => ${codeOf.get(a.product_id) ?? "?"}`).filter((l) => !l.endsWith("?")),
-    "- Notebook lines: kind 'payment' when the line says how sales money was received or deposited; kind 'expense' for money spent.",
-    `  method_code for payments, one of: ${accounts.map((a) => `${a.code} (${a.name})`).join(", ") || "none"}. 'Cash deposit' = CASH.`,
-    `  category_code for expenses, one of: ${(categories ?? []).map((c) => `${c.code} (${c.name})`).join("; ")}.`,
-    "- Return receipts: [] if there are none, notebook: [] if there is no notebook page.",
+    "- Return receipts: [] if there are none.",
     "",
     "Product list (code|name|usual price TZS):",
     ...prods.map((p, i) => `P${i + 1}|${p.name}|${Number(p.selling_price)}`),
@@ -139,7 +112,7 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
       body: JSON.stringify({
         model,
         ...(isReasoning(model) ? { reasoning_effort: "low" } : { temperature: 0 }),
-        response_format: { type: "json_schema", json_schema: { name: "receipts_and_notebook", strict: true, schema: SCHEMA } },
+        response_format: { type: "json_schema", json_schema: { name: "receipts", strict: true, schema: SCHEMA } },
         messages: [
           { role: "system", content: prompt },
           { role: "user", content: [
@@ -195,13 +168,6 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
     for (const r of receipts) r.existing_sale_id = byRef.get(receiptReference(r.number)) ?? null;
   }
 
-  const notebook: ReadNoteLine[] = (raw.notebook ?? []).filter((n) => Number(n.amount) > 0).map((n) => ({
-    key: randomUUID(), photo: opts.photo, date: okDate(n.date), label: String(n.label ?? "").trim(), amount: round2(Number(n.amount)),
-    kind: n.kind === "expense" ? "expense" : "payment",
-    account_id: n.kind === "payment" ? methodByCode.get(String(n.method_code ?? "").toUpperCase()) ?? null : null,
-    category_id: n.kind === "expense" ? catByCode.get(String(n.category_code ?? "")) ?? null : null,
-    paid_from_account_id: n.kind === "expense" ? cash : null,
-  }));
 
-  return { receipts, notebook };
+  return { receipts };
 }
