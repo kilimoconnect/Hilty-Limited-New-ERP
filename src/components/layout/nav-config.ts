@@ -45,6 +45,7 @@ export const NAV: NavEntry[] = [
     requires: "sales.view",
     items: [
       { label: "Create Sale", href: "/sales/new", enabled: true, requires: "sales.create" },
+      { label: "Sales from Photos", href: "/sales/from-photos", enabled: true, requires: "sales.create" },
       { label: "Sales History", href: "/sales/history", enabled: true, requires: "sales.view" },
       { label: "Customer Payments", href: "/sales/customer-payments", enabled: true, requires: "sales.view" },
     ],
