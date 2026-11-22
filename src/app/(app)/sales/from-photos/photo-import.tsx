@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Camera, CheckCircle2, AlertTriangle, Loader2, X, ExternalLink } from "lucide-react";
 import { createPhotoDrafts, type PhotoDraftResult } from "@/lib/photo-sales/actions";
 import {
-  linesTotal, onlyUnmatched, receiptIssues, round2,
+  linesTotal, receiptIssues, round2,
   type PhotoReadResult, type ReadNoteLine, type ReadReceipt,
 } from "@/lib/photo-sales/types";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -103,14 +103,23 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
 
   const setLineProduct = (rk: string, idx: number, product_id: string) =>
     setReceipts((rs) => rs.map((r) => (r.key !== rk ? r : { ...r, lines: r.lines.map((l, i) => (i === idx ? { ...l, product_id: product_id || null, match: product_id ? "user" : null } : l)) })));
+  const editReceipt = (rk: string, fn: (r: ReadReceipt) => ReadReceipt) => setReceipts((rs) => rs.map((r) => (r.key === rk ? fn(r) : r)));
+  const setLine = (rk: string, idx: number, patch: Partial<ReadReceipt["lines"][number]>) =>
+    editReceipt(rk, (r) => ({ ...r, lines: r.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)) }));
+  const addLine = (rk: string) => editReceipt(rk, (r) => ({ ...r, lines: [...r.lines, { qty: 1, text: "", amount: 0, product_id: null, match: null }] }));
+  const removeLine = (rk: string, idx: number) => editReceipt(rk, (r) => ({ ...r, lines: r.lines.filter((_, i) => i !== idx) }));
+  const setTotal = (rk: string, v: string) => editReceipt(rk, (r) => ({ ...r, written_total: v === "" ? null : round2(Number(v) || 0) }));
+  const cardEdit = { onLine: setLine, onAdd: addLine, onRemove: removeLine, onTotal: setTotal };
   const setReceiptDate = (rk: string, date: string) => setReceipts((rs) => rs.map((r) => (r.key === rk ? { ...r, date: date || null } : r)));
   const setNote = (nk: string, patch: Partial<ReadNoteLine>) => setNotebook((ns) => ns.map((n) => (n.key === nk ? { ...n, ...patch } : n)));
 
   // Ready = no issues (a receipt with only unmatched products is fixable here).
   const withIssues = receipts.map((r) => ({ r, issues: receiptIssues(r) }));
   const ready = withIssues.filter((x) => x.issues.length === 0 && !skip[x.r.key]).map((x) => x.r);
-  const fixable = withIssues.filter((x) => x.issues.length > 0 && onlyUnmatched(x.r));
-  const manual = withIssues.filter((x) => x.issues.length > 0 && !onlyUnmatched(x.r));
+  // Everything that does not add up (or has an unmatched item) is corrected on the page.
+  const fixable = withIssues.filter((x) => x.issues.length > 0 && !x.r.existing_sale_id);
+  const already = withIssues.filter((x) => !!x.r.existing_sale_id);
+  const manual = withIssues.filter((x) => x.issues.length > 0);
   const payLines = notebook.filter((n) => n.kind === "payment");
   const expLines = notebook.filter((n) => n.kind === "expense");
 
@@ -224,7 +233,7 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
           <Card><CardContent className="grid grid-cols-2 gap-3 p-5 text-sm sm:grid-cols-4">
             <Stat label="Receipts read" value={String(receipts.length)} />
             <Stat label="Ready for drafts" value={String(ready.length)} good />
-            <Stat label="Enter by hand" value={String(manual.length + fixable.length)} bad={manual.length + fixable.length > 0} />
+            <Stat label="To correct" value={String(fixable.length)} bad={fixable.length > 0} />
             <Stat label="Day check" value={notebook.length === 0 ? "No notebook" : Math.abs(salesTotal - moneyTotal) < 1 ? "Balances ✓" : `Off by ${formatMoney(round2(salesTotal - moneyTotal))}`}
               good={notebook.length > 0 && Math.abs(salesTotal - moneyTotal) < 1} bad={notebook.length > 0 && Math.abs(salesTotal - moneyTotal) >= 1} />
             <p className="col-span-2 text-xs text-muted-foreground sm:col-span-4">Receipts total {formatMoney(salesTotal)} · notebook money and expenses {formatMoney(moneyTotal)}.</p>
@@ -232,17 +241,20 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
 
           {fixable.length > 0 && (
             <Card><CardContent className="space-y-3 p-5">
-              <h3 className="font-semibold">2. Choose the product for these items</h3>
-              <p className="text-xs text-muted-foreground">These receipts add up; only some items were not recognised. Choose the product and the receipt moves to Ready. The system remembers your choice for next time.</p>
-              {fixable.map(({ r }) => <ReceiptCard key={r.key} r={r} prodMap={prodMap} productOptions={productOptions} onProduct={setLineProduct} onDate={setReceiptDate} />)}
+              <h3 className="font-semibold">2. Correct these receipts</h3>
+              <p className="text-xs text-muted-foreground">Look at the paper receipt and correct what is shown in red: the quantity, amount, product or total. Add a missed line with + Add line. When the items add up to the total and every item has a product, the receipt moves to Ready. Product choices are remembered for next time.</p>
+              {fixable.map(({ r, issues }) => <ReceiptCard key={r.key} r={r} issues={issues} prodMap={prodMap} productOptions={productOptions} onProduct={setLineProduct} onDate={setReceiptDate} {...cardEdit} />)}
             </CardContent></Card>
+          )}
+          {already.length > 0 && (
+            <p className="rounded-md bg-muted px-4 py-2 text-sm">Already entered, skipped: receipt {already.map(({ r }) => r.number).join(", ")}.</p>
           )}
 
           <Card><CardContent className="space-y-3 p-5">
             <h3 className="font-semibold">{fixable.length ? "3" : "2"}. Ready: check each receipt</h3>
             {withIssues.filter((x) => x.issues.length === 0).length === 0 ? <p className="text-sm text-muted-foreground">No receipt is ready yet.</p> :
               withIssues.filter((x) => x.issues.length === 0).map(({ r }) => (
-                <ReceiptCard key={r.key} r={r} prodMap={prodMap} productOptions={productOptions} onProduct={setLineProduct} onDate={setReceiptDate}
+                <ReceiptCard key={r.key} r={r} prodMap={prodMap} productOptions={productOptions} onProduct={setLineProduct} onDate={setReceiptDate} {...cardEdit}
                   included={!skip[r.key]} onInclude={(v) => setSkip((s) => ({ ...s, [r.key]: !v }))}
                   payments={(allocation.per[r.key] ?? []).map((p) => `${accName(p.payment_account_id)} ${formatMoney(p.amount)}`).join(" + ") || "No payment allocated"} />
               ))}
@@ -293,14 +305,13 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
                 </table>
               </div>
               {allocation.leftover.size > 0 && (
-                <p className="text-sm">Payments left for the receipts you enter by hand: <span className="font-medium">{Array.from(allocation.leftover).map(([id, amt]) => `${accName(id)} ${formatMoney(amt)}`).join(", ")}</span></p>
+                <p className="text-sm">Payments not yet used (they go to receipts once corrected): <span className="font-medium">{Array.from(allocation.leftover).map(([id, amt]) => `${accName(id)} ${formatMoney(amt)}`).join(", ")}</span></p>
               )}
             </CardContent></Card>
           )}
 
-          {manual.length > 0 && <Card><CardContent className="p-5"><ManualList manual={manual} branchId={branchId} leftover={allocation.leftover} accName={accName} /></CardContent></Card>}
-
           <Card><CardContent className="space-y-2 p-5">
+            {fixable.length > 0 && <p className="text-sm text-destructive">⚠ {fixable.length} receipt{fixable.length === 1 ? " still needs" : "s still need"} correcting ({fixable.map(({ r }) => r.number).join(", ")}). Correct them above, or create drafts for the ready ones now and enter the rest later.</p>}
             {unmappedPay.length > 0 && <p className="text-sm text-destructive">⚠ Choose the payment method for: {unmappedPay.map((p) => p.label).join(", ")}.</p>}
             {unpaidReady.length > 0 && <p className="rounded-md bg-warning/15 px-3 py-2 text-sm">⚠ Not fully paid from the notebook: receipt {unpaidReady.map((r) => r.number).join(", ")}. The draft is saved with what was allocated; complete the payment before posting.</p>}
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -318,45 +329,73 @@ function Stat({ label, value, good, bad }: { label: string; value: string; good?
   return <div><p className="text-xs text-muted-foreground">{label}</p><p className={`text-lg font-semibold ${good ? "text-success" : bad ? "text-destructive" : ""}`}>{value}</p></div>;
 }
 
-function ReceiptCard({ r, prodMap, productOptions, onProduct, onDate, included, onInclude, payments }: {
-  r: ReadReceipt; prodMap: Map<string, ProductOpt>; productOptions: { id: string; label: string; hint: string; search: string }[];
+type LinePatch = Partial<ReadReceipt["lines"][number]>;
+
+function ReceiptCard({ r, issues, prodMap, productOptions, onProduct, onDate, onLine, onAdd, onRemove, onTotal, included, onInclude, payments }: {
+  r: ReadReceipt; issues?: string[]; prodMap: Map<string, ProductOpt>; productOptions: { id: string; label: string; hint: string; search: string }[];
   onProduct: (rk: string, idx: number, pid: string) => void; onDate: (rk: string, d: string) => void;
+  onLine: (rk: string, idx: number, patch: LinePatch) => void; onAdd: (rk: string) => void; onRemove: (rk: string, idx: number) => void;
+  onTotal: (rk: string, v: string) => void;
   included?: boolean; onInclude?: (v: boolean) => void; payments?: string;
 }) {
+  const sum = linesTotal(r);
+  const off = r.written_total !== null && Math.abs(sum - r.written_total) > 0.5;
+  const num = (v: string) => (v === "" ? 0 : Number(v) || 0);
   return (
-    <div className={`rounded-md border border-border ${included === false ? "opacity-50" : ""}`}>
+    <div className={`rounded-md border ${issues?.length ? "border-destructive/50" : "border-border"} ${included === false ? "opacity-50" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2 text-sm">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {onInclude && <input type="checkbox" checked={included} onChange={(e) => onInclude(e.target.checked)} aria-label={`Include receipt ${r.number}`} />}
           <span className="font-semibold">Receipt {r.number}</span>
-          <Input type="date" className="h-7 w-36" value={r.date ?? ""} onChange={(e) => onDate(r.key, e.target.value)} aria-label="Receipt date" />
+          <Input type="date" className={`h-7 w-36 ${r.date ? "" : "border-destructive"}`} value={r.date ?? ""} onChange={(e) => onDate(r.key, e.target.value)} aria-label="Receipt date" />
           {r.date && <span className="text-xs text-muted-foreground">{formatDate(r.date)}</span>}
         </div>
-        <span className="tabular-nums font-semibold">{formatMoney(r.written_total ?? linesTotal(r))}</span>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">Receipt total
+          <Input aria-label="Receipt total" type="number" min="0" step="1" className={`h-7 w-32 text-right font-semibold tabular-nums ${off || r.written_total === null ? "border-destructive" : ""}`}
+            value={r.written_total ?? ""} onChange={(e) => onTotal(r.key, e.target.value)} />
+        </label>
       </div>
-      <table className="w-full text-sm">
-        <tbody>
-          {r.lines.map((l, i) => {
-            const p = l.product_id ? prodMap.get(l.product_id) : null;
-            const unit = l.qty > 0 ? round2(l.amount / l.qty) : 0;
-            return (
-              <tr key={i} className="border-t border-border first:border-t-0 align-middle">
-                <td className="w-12 px-3 py-1.5 tabular-nums">{l.qty}</td>
-                <td className="px-2 py-1.5 text-muted-foreground italic">{l.text}</td>
-                <td className="px-1 py-1 min-w-[240px]">
-                  <SearchSelect value={l.product_id ?? ""} onChange={(v) => onProduct(r.key, i, v)} placeholder="Choose product…" options={productOptions}
-                    className={l.product_id ? "" : "[&_button]:border-destructive"} />
-                  {l.match === "memory" && <span className="text-[10px] text-muted-foreground">remembered</span>}
-                </td>
-                <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-xs text-muted-foreground" title="Unit price = amount ÷ qty">
-                  {formatMoney(unit)} each{p && p.price !== unit ? <span className="block">list {formatMoney(p.price)}</span> : null}
-                </td>
-                <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">{formatMoney(l.amount)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {issues && issues.length > 0 && (
+        <ul className="list-disc space-y-0.5 border-b border-border bg-destructive/5 py-1.5 pl-8 pr-3 text-xs text-destructive">{issues.map((x) => <li key={x}>{x}</li>)}</ul>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-[10px] uppercase text-muted-foreground">
+            <tr><th className="px-3 pt-1.5 text-left">Qty</th><th className="px-2 pt-1.5 text-left">As written</th><th className="px-1 pt-1.5 text-left">Product</th><th className="px-2 pt-1.5 text-right">Each</th><th className="px-1 pt-1.5 text-right">Amount</th><th /></tr>
+          </thead>
+          <tbody>
+            {r.lines.map((l, i) => {
+              const p = l.product_id ? prodMap.get(l.product_id) : null;
+              const unit = l.qty > 0 ? round2(l.amount / l.qty) : 0;
+              return (
+                <tr key={i} className="border-t border-border align-middle">
+                  <td className="px-2 py-1"><Input aria-label="Quantity" type="number" min="0" step="any" className={`h-8 w-16 text-right tabular-nums ${l.qty > 0 ? "" : "border-destructive"}`}
+                    value={l.qty || ""} onChange={(e) => onLine(r.key, i, { qty: num(e.target.value) })} /></td>
+                  <td className="px-2 py-1"><Input aria-label="Item as written" className="h-8 min-w-[130px] border-transparent bg-transparent italic text-muted-foreground hover:border-input focus:border-input"
+                    placeholder="Item" value={l.text} onChange={(e) => onLine(r.key, i, { text: e.target.value })} /></td>
+                  <td className="px-1 py-1 min-w-[240px]">
+                    <SearchSelect value={l.product_id ?? ""} onChange={(v) => onProduct(r.key, i, v)} placeholder="Choose product…" options={productOptions}
+                      className={l.product_id ? "" : "[&_button]:border-destructive"} />
+                    {l.match === "memory" && <span className="text-[10px] text-muted-foreground">remembered</span>}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-xs text-muted-foreground" title="Unit price = amount ÷ qty">
+                    {formatMoney(unit)}{p && Math.abs(p.price - unit) > 0.5 ? <span className="block">list {formatMoney(p.price)}</span> : null}
+                  </td>
+                  <td className="px-1 py-1"><Input aria-label="Amount" type="number" min="0" step="1" className={`ml-auto h-8 w-28 text-right tabular-nums ${l.amount > 0 ? "" : "border-destructive"}`}
+                    value={l.amount || ""} onChange={(e) => onLine(r.key, i, { amount: round2(num(e.target.value)) })} /></td>
+                  <td className="px-1 py-1 text-center"><button type="button" aria-label="Remove line" onClick={() => onRemove(r.key, i)} className="text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-1.5 text-xs">
+        <button type="button" onClick={() => onAdd(r.key)} className="font-medium text-primary hover:underline">+ Add line</button>
+        <span className={`tabular-nums ${off ? "font-semibold text-destructive" : "text-muted-foreground"}`}>
+          Items add up to {formatMoney(sum)}{off ? ` · difference ${formatMoney(round2((r.written_total ?? 0) - sum))}` : r.written_total !== null ? " ✓" : ""}
+        </span>
+      </div>
       {payments && <p className="border-t border-border px-3 py-1.5 text-xs text-muted-foreground">Payment: {payments}</p>}
     </div>
   );
