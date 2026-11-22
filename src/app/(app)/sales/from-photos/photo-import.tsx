@@ -32,8 +32,9 @@ async function toDataUrl(file: File): Promise<string> {
 /**
  * Upload receipt photos -> each is read on the server -> review the items:
  * every item needs a quantity, an amount and a product (choose it where it was
- * not recognised; the choice is remembered). Receipts that are complete become
- * sale drafts; payment is entered on the draft before posting.
+ * not recognised; the choice is remembered). The complete receipts are
+ * combined into one sale draft (one per date); payment is entered on the
+ * draft before posting.
  */
 export function PhotoImport({ branchId, products }: { branchId: string; products: ProductOpt[] }) {
   const [photos, setPhotos] = React.useState<Photo[]>([]);
@@ -102,6 +103,7 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
   const already = withIssues.filter((x) => !!x.r.existing_sale_id);
   const readyAll = withIssues.filter((x) => x.issues.length === 0);
   const ready = readyAll.filter((x) => !skip[x.r.key]).map((x) => x.r);
+  const readyDates = Array.from(new Set(ready.map((r) => r.date)));
 
   async function create() {
     setSaving(true);
@@ -109,25 +111,27 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
     setSaving(false);
     if (!res.ok) { toast.error(res.error ?? "Failed."); return; }
     setResult(res);
-    const made = res.receipts.filter((r) => r.id).length;
-    toast.success(`${made} sale draft${made === 1 ? "" : "s"} created. Add the payment on each, then post.`);
+    const made = res.drafts.filter((d) => d.id).length;
+    if (made) toast.success(`Sale draft created from ${res.drafts.filter((d) => d.id).reduce((n, d) => n + d.numbers.length, 0)} receipts. Add the payment, then post.`);
+    else toast.error(res.drafts[0]?.error ?? res.refused[0]?.error ?? "No draft was created.");
   }
 
   if (result) {
     return (
       <Card><CardContent className="space-y-3 p-5">
-        <h3 className="font-semibold">Drafts created</h3>
-        <p className="text-sm text-muted-foreground">Open each draft, check the items against the receipt, add the payment with Edit draft, then post it.</p>
+        <h3 className="font-semibold">Sale draft created</h3>
+        <p className="text-sm text-muted-foreground">Open the draft, check the items against the receipts, add the payment with Edit draft, then post it.</p>
         <ul className="space-y-1.5 text-sm">
-          {result.receipts.map((r) => (
-            <li key={r.key} className="flex items-center gap-2">
-              {r.id ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertTriangle className="h-4 w-4 text-destructive" />}
-              <span className="font-medium">Receipt {r.number}</span>
-              {r.id ? <Link href={`/sales/${r.id}`} className="inline-flex items-center gap-1 text-primary underline">Open sale draft <ExternalLink className="h-3 w-3" /></Link> : <span className="text-destructive">{r.error}</span>}
+          {result.drafts.map((d) => (
+            <li key={d.date} className="flex flex-wrap items-center gap-2">
+              {d.id ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertTriangle className="h-4 w-4 text-destructive" />}
+              <span className="font-medium">{formatDate(d.date)} · receipts {d.numbers.join(", ")}</span>
+              {d.id ? <Link href={`/sales/${d.id}`} className="inline-flex items-center gap-1 text-primary underline">Open sale draft <ExternalLink className="h-3 w-3" /></Link> : <span className="text-destructive">{d.error}</span>}
             </li>
           ))}
         </ul>
-        {fixable.length > 0 && <p className="text-sm text-destructive">Not drafted (still needed correcting): receipt {fixable.map(({ r }) => r.number).join(", ")}.</p>}
+        {result.refused.length > 0 && <p className="text-sm text-destructive">Left out: {result.refused.map((r) => `receipt ${r.number} (${r.error})`).join("; ")}.</p>}
+        {fixable.length > 0 && <p className="text-sm text-destructive">Not included (still needed correcting): receipt {fixable.map(({ r }) => r.number).join(", ")}.</p>}
         <div className="flex gap-2 pt-2">
           <Button asChild variant="outline"><Link href="/sales/history?status=draft">Sales drafts</Link></Button>
           <Button onClick={() => { setResult(null); setReceipts([]); setPhotos([]); setSkip({}); }}>Start again</Button>
@@ -191,8 +195,11 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
           </CardContent></Card>
 
           <Card><CardContent className="flex flex-wrap items-center justify-between gap-2 p-5">
-            <p className="text-sm text-muted-foreground">{ready.length} sale draft{ready.length === 1 ? "" : "s"} will be created (Walk-in, the receipt&apos;s date). Add the payment on each draft, then post.</p>
-            <Button onClick={create} disabled={saving || ready.length === 0}>{saving ? "Creating…" : "Create drafts"}</Button>
+            <div className="text-sm text-muted-foreground">
+              <p>{ready.length} receipt{ready.length === 1 ? "" : "s"} ({ready.map((r) => r.number).join(", ") || "none"}) will be combined into {readyDates.length > 1 ? `${readyDates.length} sale drafts, one per date` : "one sale draft"} for Walk-in · {formatMoney(round2(ready.reduce((s, r) => s + linesTotal(r), 0)))}.</p>
+              <p className="text-xs">The same product at the same price is put on one line. Add the payment on the draft, then post.</p>
+            </div>
+            <Button onClick={create} disabled={saving || ready.length === 0}>{saving ? "Creating…" : "Create sale draft"}</Button>
           </CardContent></Card>
         </>
       )}

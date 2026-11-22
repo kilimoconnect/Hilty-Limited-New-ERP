@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { makeMatcher } from "./matcher";
-import { normalizeAlias, receiptReference, round2, type PhotoReadResult, type ReadReceipt } from "./types";
+import { normalizeAlias, referenceNumbers, round2, type PhotoReadResult, type ReadReceipt } from "./types";
 
 /**
  * Reads the items on one photo of handwritten cash-sale receipts with an
@@ -160,14 +160,24 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
   }));
 
   // A receipt number already used on a sale at this branch (not voided) is entered already.
-  const refs = receipts.filter((r) => r.number).map((r) => receiptReference(r.number));
-  if (refs.length) {
-    const { data: existing } = await admin.from("sales").select("id, customer_reference")
-      .eq("company_id", opts.companyId).eq("branch_id", opts.branchId).neq("document_status", "voided").in("customer_reference", refs);
-    const byRef = new Map((existing ?? []).map((s) => [s.customer_reference, s.id]));
-    for (const r of receipts) r.existing_sale_id = byRef.get(receiptReference(r.number)) ?? null;
+  if (receipts.length) {
+    const used = await usedReceiptNumbers(opts.companyId, opts.branchId);
+    for (const r of receipts) r.existing_sale_id = used.get(r.number) ?? null;
   }
 
 
   return { receipts };
+}
+
+/**
+ * Receipt numbers already on a sale at the branch (not voided), from the
+ * reference ("Receipt 0197" or "Receipts 0195, 0196, 0197") -> the sale.
+ */
+export async function usedReceiptNumbers(companyId: string, branchId: string): Promise<Map<string, string>> {
+  const { data } = await createAdminClient().from("sales").select("id, customer_reference")
+    .eq("company_id", companyId).eq("branch_id", branchId).neq("document_status", "voided")
+    .ilike("customer_reference", "receipt%").order("created_at", { ascending: false }).limit(5000);
+  const used = new Map<string, string>();
+  for (const s of data ?? []) for (const n of referenceNumbers(s.customer_reference)) if (!used.has(n)) used.set(n, s.id);
+  return used;
 }

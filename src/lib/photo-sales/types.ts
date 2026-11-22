@@ -38,8 +38,15 @@ export function normalizeAlias(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").replace(/[.,;:]+$/g, "").trim().slice(0, 120);
 }
 
-/** The reference stored on the sale, used to spot a receipt entered twice. */
-export const receiptReference = (number: string) => `Receipt ${number.trim()}`;
+/** The reference stored on a combined sale: "Receipts 0195, 0196, 0197". */
+export const receiptsReference = (numbers: string[]) =>
+  `${numbers.length === 1 ? "Receipt" : "Receipts"} ${numbers.map((n) => n.trim()).join(", ")}`.slice(0, 250);
+
+/** Receipt numbers on a stored reference ("Receipt 0197" or "Receipts 0195, 0196"). */
+export function referenceNumbers(ref: string | null | undefined): string[] {
+  if (!ref || !/^receipts?\s/i.test(ref)) return [];
+  return ref.replace(/^receipts?\s+/i, "").split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+}
 
 export const linesTotal = (r: ReadReceipt) => round2(r.lines.reduce((s, l) => s + (Number(l.amount) || 0), 0));
 

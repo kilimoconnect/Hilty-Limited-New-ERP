@@ -24,7 +24,7 @@ export default async function SalesFromPhotosPage(props: { searchParams: Promise
   return (
     <div>
       <PageHeader title="Sales from Photos"
-        description={<><ChosenBranch branch={branch} canChange={ctx.branches.length > 1} /> · Photograph the day&apos;s cash-sale receipts. Their items become sale drafts; add the payment on each draft, then post.</>} />
+        description={<><ChosenBranch branch={branch} canChange={ctx.branches.length > 1} /> · Photograph the day&apos;s cash-sale receipts. Their items are combined into one sale draft; add the payment on the draft, then post.</>} />
       <PhotoImport
         branchId={ctx.branchId}
         products={(products ?? []).map((p) => ({ id: p.id, sku: p.sku, name: p.name, price: Number(p.selling_price) }))}
