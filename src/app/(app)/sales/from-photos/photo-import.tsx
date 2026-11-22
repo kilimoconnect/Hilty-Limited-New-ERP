@@ -187,24 +187,18 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
 
       {receipts.length > 0 && (
         <>
-          {fixable.length > 0 && (
-            <Card><CardContent className="space-y-3 p-5">
-              <h3 className="font-semibold">2. Correct these receipts</h3>
-              <p className="text-xs text-muted-foreground">Look at the paper receipt and fix what is shown in red: choose the product, or correct the quantity or price. Add a missed item with + Add line. Once every item is complete the receipt moves to Ready. Product choices are remembered for next time.</p>
-              {fixable.map(({ r, issues }) => <ReceiptCard key={r.key} r={r} issues={issues} prodMap={prodMap} productOptions={productOptions} needed={needed} {...edit} />)}
-            </CardContent></Card>
-          )}
-          {already.length > 0 && (
-            <p className="rounded-md bg-muted px-4 py-2 text-sm">Already entered, skipped: receipt {already.map(({ r }) => r.number).join(", ")}.</p>
-          )}
-
           <Card><CardContent className="space-y-3 p-5">
-            <h3 className="font-semibold">{fixable.length ? "3" : "2"}. Ready: check the items</h3>
-            {readyAll.length === 0 ? <p className="text-sm text-muted-foreground">No receipt is ready yet.</p> :
-              readyAll.map(({ r }) => (
-                <ReceiptCard key={r.key} r={r} prodMap={prodMap} productOptions={productOptions} needed={needed} {...edit}
-                  included={!skip[r.key]} onInclude={(v) => setSkip((s) => ({ ...s, [r.key]: !v }))} />
-              ))}
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-semibold">2. Check the receipts</h3>
+              <span className="text-xs text-muted-foreground">{readyAll.length} complete · {fixable.length} to correct{already.length ? ` · ${already.length} already entered` : ""}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Compare each receipt with the paper. Where something is shown in red, choose the product or correct the quantity or price; add a missed item with + Add line. Product choices are remembered for next time.</p>
+            {/* Receipts stay in their order; each shows whether it is complete. */}
+            {withIssues.map(({ r, issues }) => (
+              <ReceiptCard key={r.key} r={r} issues={issues} prodMap={prodMap} productOptions={productOptions} needed={needed} {...edit}
+                included={issues.length === 0 ? !skip[r.key] : undefined}
+                onInclude={issues.length === 0 ? (v) => setSkip((x) => ({ ...x, [r.key]: !v })) : undefined} />
+            ))}
           </CardContent></Card>
 
           <Card><CardContent className="flex flex-wrap items-center justify-between gap-2 p-5">
@@ -242,6 +236,9 @@ function ReceiptCard({ r, issues, prodMap, productOptions, needed, onProduct, on
         <div className="flex flex-wrap items-center gap-3">
           {onInclude && <input type="checkbox" checked={included} onChange={(e) => onInclude(e.target.checked)} aria-label={`Include receipt ${r.number}`} />}
           <span className="font-semibold">Receipt {r.number}</span>
+          {issues && issues.length > 0
+            ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">{r.existing_sale_id ? "Already entered" : "To correct"}</span>
+            : <span className="rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success">Complete ✓</span>}
           <Input type="date" className={`h-7 w-36 ${r.date ? "" : "border-destructive"}`} value={r.date ?? ""} onChange={(e) => onDate(r.key, e.target.value)} aria-label="Receipt date" />
           {r.date && <span className="text-xs text-muted-foreground">{formatDate(r.date)}</span>}
         </div>
