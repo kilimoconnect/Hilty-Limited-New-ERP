@@ -132,8 +132,8 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
   let lastError = "";
   for (const model of MODELS) {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      // Stay inside the 60-second server limit.
-      signal: AbortSignal.timeout(55_000),
+      // Stay inside the 300-second server limit.
+      signal: AbortSignal.timeout(280_000),
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({

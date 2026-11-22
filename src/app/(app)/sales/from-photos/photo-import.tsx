@@ -72,9 +72,9 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
     setReading(true); setResult(null);
     const allR: ReadReceipt[] = [...receipts];
     const allN: ReadNoteLine[] = [...notebook];
-    for (let i = 0; i < photos.length; i++) {
-      const ph = photos[i];
-      if (ph.status === "done") continue;
+    // All photos are read at the same time: the wait is the slowest photo, not the sum.
+    const results = await Promise.all(photos.map(async (ph, i): Promise<PhotoReadResult | null> => {
+      if (ph.status === "done") return null;
       setPhotos((p) => p.map((x) => (x.key === ph.key ? { ...x, status: "reading", error: undefined } : x)));
       try {
         const image = await toDataUrl(ph.file);
@@ -82,16 +82,20 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ branchId, photo: i, image }),
         });
-        const json = await res.json().catch(() => ({ error: "The server did not answer." }));
+        const json = await res.json().catch(() => ({ error: res.status === 504 ? "The server stopped waiting. Try again." : "The server did not answer." }));
         if (!res.ok) throw new Error(json.error ?? "Could not read the photo.");
-        const data = json as PhotoReadResult;
-        // The same receipt photographed twice: keep the first reading.
-        for (const r of data.receipts) if (!allR.some((x) => x.number && x.number === r.number)) allR.push(r);
-        allN.push(...data.notebook);
         setPhotos((p) => p.map((x) => (x.key === ph.key ? { ...x, status: "done" } : x)));
+        return json as PhotoReadResult;
       } catch (e) {
         setPhotos((p) => p.map((x) => (x.key === ph.key ? { ...x, status: "error", error: e instanceof Error ? e.message : "Failed." } : x)));
+        return null;
       }
+    }));
+    for (const data of results) {
+      if (!data) continue;
+      // The same receipt photographed twice: keep the first reading.
+      for (const r of data.receipts) if (!allR.some((x) => x.number && x.number === r.number)) allR.push(r);
+      allN.push(...data.notebook);
     }
     allR.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
     setReceipts(allR); setNotebook(allN); setReading(false);
@@ -204,7 +208,7 @@ export function PhotoImport({ branchId, products, accounts, categories, canExpen
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={p.url} alt={`Photo ${i + 1}`} className="h-36 w-28 rounded-md border border-border object-cover" />
                 <span className={`mt-1 block text-[11px] ${p.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>
-                  {p.status === "waiting" ? "Waiting" : p.status === "reading" ? "Reading…" : p.status === "done" ? "Read ✓" : p.error}
+                  {p.status === "waiting" ? "Waiting" : p.status === "reading" ? "Reading… (up to 3 min)" : p.status === "done" ? "Read ✓" : p.error}
                 </span>
                 {!reading && p.status !== "reading" && (
                   <button type="button" aria-label="Remove photo" onClick={() => removePhoto(p.key)} className="absolute right-1 top-1 rounded-full bg-background/90 p-0.5 hover:text-destructive"><X className="h-3.5 w-3.5" /></button>

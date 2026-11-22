@@ -4,8 +4,9 @@ import { getActiveContext } from "@/lib/context";
 import { writeAuditLog } from "@/lib/audit";
 import { readPhoto, ReaderError } from "@/lib/photo-sales/reader";
 
-// Reading a photo with the vision model can take 10-40 seconds.
-export const maxDuration = 60;
+// A photo with several handwritten receipts can take one to three minutes with a
+// strong vision model that checks its own totals (Vercel allows up to 300 s).
+export const maxDuration = 300;
 
 /**
  * POST { branchId, photo, image: "data:image/jpeg;base64,..." } -> what was
