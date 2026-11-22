@@ -177,7 +177,7 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
           {fixable.length > 0 && (
             <Card><CardContent className="space-y-3 p-5">
               <h3 className="font-semibold">2. Correct these receipts</h3>
-              <p className="text-xs text-muted-foreground">Look at the paper receipt and fix what is shown in red: choose the product, or correct the quantity or amount. Add a missed item with + Add line. Once every item is complete the receipt moves to Ready. Product choices are remembered for next time.</p>
+              <p className="text-xs text-muted-foreground">Look at the paper receipt and fix what is shown in red: choose the product, or correct the quantity or price. Add a missed item with + Add line. Once every item is complete the receipt moves to Ready. Product choices are remembered for next time.</p>
               {fixable.map(({ r, issues }) => <ReceiptCard key={r.key} r={r} issues={issues} prodMap={prodMap} productOptions={productOptions} {...edit} />)}
             </CardContent></Card>
           )}
@@ -231,16 +231,19 @@ function ReceiptCard({ r, issues, prodMap, productOptions, onProduct, onDate, on
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-[10px] uppercase text-muted-foreground">
-            <tr><th className="px-3 pt-1.5 text-left">Qty</th><th className="px-2 pt-1.5 text-left">As written</th><th className="px-1 pt-1.5 text-left">Product</th><th className="px-2 pt-1.5 text-right">Each</th><th className="px-1 pt-1.5 text-right">Amount</th><th /></tr>
+            <tr><th className="px-3 pt-1.5 text-left">Qty</th><th className="px-2 pt-1.5 text-left">As written</th><th className="px-1 pt-1.5 text-left">Product</th><th className="px-1 pt-1.5 text-right">Price (each)</th><th className="px-2 pt-1.5 text-right">Amount</th><th /></tr>
           </thead>
           <tbody>
             {r.lines.map((l, i) => {
               const p = l.product_id ? prodMap.get(l.product_id) : null;
-              const unit = l.qty > 0 ? round2(l.amount / l.qty) : 0;
+              const unit = l.qty > 0 ? round2(l.amount / l.qty) : l.amount;
+              // The price is what is corrected; the amount follows (qty x price).
+              const setQty = (q: number) => onLine(r.key, i, { qty: q, amount: round2(unit * q) });
+              const setPrice = (pr: number) => onLine(r.key, i, { amount: round2(pr * (l.qty > 0 ? l.qty : 1)) });
               return (
                 <tr key={i} className="border-t border-border align-middle">
                   <td className="px-2 py-1"><Input aria-label="Quantity" type="number" min="0" step="any" className={`h-8 w-16 text-right tabular-nums ${l.qty > 0 ? "" : "border-destructive"}`}
-                    value={l.qty || ""} onChange={(e) => onLine(r.key, i, { qty: num(e.target.value) })} /></td>
+                    value={l.qty || ""} onChange={(e) => setQty(num(e.target.value))} /></td>
                   <td className="px-2 py-1"><Input aria-label="Item as written" className="h-8 min-w-[130px] border-transparent bg-transparent italic text-muted-foreground hover:border-input focus:border-input"
                     placeholder="Item" value={l.text} onChange={(e) => onLine(r.key, i, { text: e.target.value })} /></td>
                   <td className="px-1 py-1 min-w-[240px]">
@@ -248,11 +251,15 @@ function ReceiptCard({ r, issues, prodMap, productOptions, onProduct, onDate, on
                       className={l.product_id ? "" : "[&_button]:border-destructive"} />
                     {l.match === "memory" && <span className="text-[10px] text-muted-foreground">remembered</span>}
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-xs text-muted-foreground" title="Unit price = amount ÷ qty">
-                    {formatMoney(unit)}{p && Math.abs(p.price - unit) > 0.5 ? <span className="block">list {formatMoney(p.price)}</span> : null}
+                  <td className="px-1 py-1 text-right">
+                    <Input aria-label="Price each" type="number" min="0" step="any" className={`ml-auto h-8 w-28 text-right tabular-nums ${unit > 0 ? "" : "border-destructive"}`}
+                      value={unit || ""} onChange={(e) => setPrice(num(e.target.value))} />
+                    {p && Math.abs(p.price - unit) > 0.5 && (
+                      <button type="button" className="mt-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline" title="Use the list price"
+                        onClick={() => setPrice(p.price)}>list {formatMoney(p.price)}</button>
+                    )}
                   </td>
-                  <td className="px-1 py-1"><Input aria-label="Amount" type="number" min="0" step="1" className={`ml-auto h-8 w-28 text-right tabular-nums ${l.amount > 0 ? "" : "border-destructive"}`}
-                    value={l.amount || ""} onChange={(e) => onLine(r.key, i, { amount: round2(num(e.target.value)) })} /></td>
+                  <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums">{formatMoney(l.amount)}</td>
                   <td className="px-1 py-1 text-center"><button type="button" aria-label="Remove line" onClick={() => onRemove(r.key, i)} className="text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button></td>
                 </tr>
               );

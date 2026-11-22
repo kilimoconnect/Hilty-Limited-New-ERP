@@ -62,7 +62,7 @@ export function receiptIssues(r: ReadReceipt): string[] {
   if (r.lines.length === 0) issues.push("No items could be read.");
   for (const l of r.lines) {
     if (!(l.qty > 0)) issues.push(`"${l.text}": quantity could not be read.`);
-    if (!(l.amount > 0)) issues.push(`"${l.text}": amount could not be read.`);
+    if (!(l.amount > 0)) issues.push(`"${l.text}": price could not be read.`);
     if (!l.product_id) issues.push(`"${l.text}": product not matched.`);
   }
   return issues;
