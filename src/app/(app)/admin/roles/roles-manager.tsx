@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { RoleLimits } from "./role-limits";
+import { NewRoleButton, EditRoleButton } from "./role-dialogs";
 
 export interface RoleRow {
   id: string;
@@ -42,12 +43,16 @@ export function RolesManager({
   );
   const [pending, setPending] = React.useState(false);
 
-  const selected = roles.find((r) => r.id === selectedId);
+  // A role just created is not in the list until the page refreshes: fall back to the first.
+  const selected = roles.find((r) => r.id === selectedId) ?? roles[0];
   const isOwner = selected?.code === "OWNER";
 
-  React.useEffect(() => {
+  // Another role chosen (or the saved permissions refreshed): show its permissions.
+  const [shownFor, setShownFor] = React.useState({ id: selectedId, perms: rolePermissions });
+  if (shownFor.id !== selectedId || shownFor.perms !== rolePermissions) {
+    setShownFor({ id: selectedId, perms: rolePermissions });
     setChecked(new Set(rolePermissions[selectedId] ?? []));
-  }, [selectedId, rolePermissions]);
+  }
 
   const grouped = React.useMemo(() => {
     const map = new Map<string, PermRow[]>();
@@ -79,7 +84,8 @@ export function RolesManager({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_1fr]">
       <Card className="h-fit">
-        <CardContent className="p-2">
+        <CardContent className="space-y-2 p-2">
+          <NewRoleButton roles={roles} onCreated={(id) => setSelectedId(id)} />
           <ul className="space-y-1">
             {roles.map((r) => (
               <li key={r.id}>
@@ -111,7 +117,7 @@ export function RolesManager({
         <CardContent className="p-5">
           {selected && (
             <>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="flex items-center gap-2 text-base font-semibold">
                     {selected.name}
@@ -120,9 +126,12 @@ export function RolesManager({
                   <p className="text-sm text-muted-foreground">{selected.description}</p>
                 </div>
                 {!isOwner && (
-                  <Button onClick={save} disabled={pending}>
-                    {pending ? "Saving..." : "Save permissions"}
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <EditRoleButton key={selected.id} role={selected} />
+                    <Button onClick={save} disabled={pending}>
+                      {pending ? "Saving..." : "Save permissions"}
+                    </Button>
+                  </div>
                 )}
               </div>
 

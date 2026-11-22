@@ -60,6 +60,82 @@ export async function setRolePermissions(
   return { ok: true };
 }
 
+/** "Sales Supervisor" -> "SALES_SUPERVISOR" (unique among roles). */
+async function uniqueRoleCode(admin: ReturnType<typeof createAdminClient>, name: string): Promise<string> {
+  const base = name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "ROLE";
+  const { data } = await admin.from("roles").select("code").ilike("code", `${base}%`);
+  const taken = new Set((data ?? []).map((r) => r.code));
+  if (!taken.has(base)) return base;
+  for (let i = 2; i < 1000; i++) if (!taken.has(`${base}_${i}`)) return `${base}_${i}`;
+  return `${base}_${Date.now()}`;
+}
+
+function cleanName(name: string) { return name.replace(/\s+/g, " ").trim(); }
+
+/**
+ * Adds a role. Its permissions can be copied from an existing role (not the
+ * Owner) and are then set on the page. Owner only, like the rest of Admin.
+ */
+export async function createRole(input: { name: string; description?: string; copyFromRoleId?: string | null }): Promise<RoleActionResult & { id?: string }> {
+  let user;
+  try { user = await assertOwner(); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Not authorized." }; }
+  const name = cleanName(input.name);
+  if (name.length < 2 || name.length > 60) return { ok: false, error: "Give the role a name of 2 to 60 characters." };
+  const admin = createAdminClient();
+  const { data: same } = await admin.from("roles").select("id").ilike("name", name).limit(1);
+  if (same?.length) return { ok: false, error: `A role called "${name}" already exists.` };
+
+  let copy: string[] = [];
+  if (input.copyFromRoleId) {
+    const { data: src } = await admin.from("roles").select("id, code").eq("id", input.copyFromRoleId).maybeSingle();
+    if (!src) return { ok: false, error: "The role to copy from was not found." };
+    if (src.code === OWNER_ROLE) return { ok: false, error: "Permissions cannot be copied from the Owner role." };
+    const { data: rp } = await admin.from("role_permissions").select("permission_id").eq("role_id", src.id);
+    copy = (rp ?? []).map((r) => r.permission_id);
+  }
+
+  const code = await uniqueRoleCode(admin, name);
+  const { data: role, error } = await admin.from("roles").insert({
+    code, name, description: cleanName(input.description ?? "") || null,
+    is_system: false, is_protected: false, is_active: true, created_by: user.id, updated_by: user.id,
+  }).select("id").single();
+  if (error || !role) return { ok: false, error: error?.message ?? "Could not create the role." };
+  if (copy.length) {
+    const { error: e2 } = await admin.from("role_permissions").insert(copy.map((pid) => ({ role_id: role.id, permission_id: pid })));
+    if (e2) return { ok: false, error: e2.message };
+  }
+  await writeAuditLog({
+    userId: user.id, action: "role.create", resourceType: "role", resourceId: role.id,
+    newValues: { code, name, copied_from: input.copyFromRoleId ?? null, permissions: copy.length },
+  });
+  revalidatePath("/admin/roles");
+  return { ok: true, id: role.id };
+}
+
+/** Renames a role and/or changes its description. The Owner role cannot be changed. */
+export async function updateRole(roleId: string, input: { name: string; description?: string }): Promise<RoleActionResult> {
+  let user;
+  try { user = await assertOwner(); } catch (e) { return { ok: false, error: e instanceof Error ? e.message : "Not authorized." }; }
+  const name = cleanName(input.name);
+  if (name.length < 2 || name.length > 60) return { ok: false, error: "Give the role a name of 2 to 60 characters." };
+  const admin = createAdminClient();
+  const { data: role } = await admin.from("roles").select("id, code, name, description").eq("id", roleId).maybeSingle();
+  if (!role) return { ok: false, error: "Role not found." };
+  if (role.code === OWNER_ROLE) return { ok: false, error: "The Owner role is protected." };
+  const { data: same } = await admin.from("roles").select("id").ilike("name", name).neq("id", roleId).limit(1);
+  if (same?.length) return { ok: false, error: `A role called "${name}" already exists.` };
+  const description = cleanName(input.description ?? "") || null;
+  // The code stays the same: it is what the system uses to recognise the role.
+  const { error } = await admin.from("roles").update({ name, description, updated_by: user.id, updated_at: new Date().toISOString() }).eq("id", roleId);
+  if (error) return { ok: false, error: error.message };
+  await writeAuditLog({
+    userId: user.id, action: "role.rename", resourceType: "role", resourceId: roleId,
+    oldValues: { name: role.name, description: role.description }, newValues: { name, description },
+  });
+  revalidatePath("/admin/roles"); revalidatePath("/admin/users");
+  return { ok: true };
+}
+
 export interface RoleLimitsInput {
   /** Days back a document may be dated; null = no limit. */
   backdateDays: number | null;
