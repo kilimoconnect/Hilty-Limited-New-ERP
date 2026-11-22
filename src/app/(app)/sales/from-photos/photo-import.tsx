@@ -24,15 +24,15 @@ interface Photo { key: string; file: File; url: string; status: "waiting" | "rea
 const NONE = "__none__";
 const key = () => Math.random().toString(36).slice(2);
 
-/** Phone photos are large: scale to at most 2000 px and send as JPEG. */
+/** Phone photos are large: scale to at most 2600 px (sharp enough for 4 receipts on one page) and send as JPEG. */
 async function toDataUrl(file: File): Promise<string> {
   const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+  const scale = Math.min(1, 2600 / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
   canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
   bmp.close();
-  return canvas.toDataURL("image/jpeg", 0.85);
+  return canvas.toDataURL("image/jpeg", 0.9);
 }
 
 /**

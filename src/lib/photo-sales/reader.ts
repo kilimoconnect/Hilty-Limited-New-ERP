@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { branchPaymentOptions } from "@/lib/payment-methods";
+import { makeMatcher } from "./matcher";
 import { normalizeAlias, receiptReference, round2, type PhotoReadResult, type ReadNoteLine, type ReadReceipt } from "./types";
 
 /**
@@ -11,7 +12,10 @@ import { normalizeAlias, receiptReference, round2, type PhotoReadResult, type Re
  * key never reaches the browser.
  */
 
-const MODEL = process.env.OPENAI_VISION_MODEL || "gpt-4o";
+// Handwritten digits need a strong vision model. Tried in order until one is available
+// on the account; OPENAI_VISION_MODEL puts a chosen model first.
+const MODELS = Array.from(new Set([process.env.OPENAI_VISION_MODEL, "gpt-5", "gpt-4.1", "gpt-4o"].filter(Boolean) as string[]));
+const isReasoning = (m: string) => /^(gpt-5|o\d)/.test(m);
 
 const SCHEMA = {
   type: "object",
@@ -86,6 +90,7 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
   const codeOf = new Map(prods.map((p, i) => [p.id, `P${i + 1}`]));
   const idOfCode = new Map(prods.map((p, i) => [`P${i + 1}`, p.id]));
   const aliasMap = new Map((aliases ?? []).map((a) => [a.alias, a.product_id]));
+  const match = makeMatcher(prods.map((p) => ({ id: p.id, name: p.name, price: Number(p.selling_price) })));
   const methodByCode = new Map(accounts.map((a) => [String(a.code ?? "").toUpperCase(), a.id]));
   const cash = accounts.find((a) => String(a.code ?? "").toUpperCase() === "CASH")?.id ?? accounts[0]?.id ?? null;
   const catByCode = new Map((categories ?? []).map((c) => [c.code, c.id]));
@@ -102,6 +107,13 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
     "- The Shs column is the LINE TOTAL for that quantity, not the unit price. Copy it exactly as written; do not correct the receipt.",
     "- written_total is the number written next to TOTAL. Do not compute it.",
     "- 'qty' is the number in the Qty column ('1roll' = 1, '1ctn' = 1).",
+    "- CHECK YOURSELF before answering, for every receipt:",
+    "  1. Add up the line amounts. If the sum is not exactly the written TOTAL, look again at each digit of each amount and quantity:",
+    "     handwritten 1/7, 3/5/8, 2/7, 0/6, 4/9 are easily confused, and thousands are written like '3,000' or '3000'.",
+    "  2. Compare each line with the usual price in the product list: amount / qty is normally close to the usual price",
+    "     (e.g. an R BRUSH PVC is about 3,400, so '3000' is far more likely than '7000').",
+    "  3. Choose the reading that makes the lines add up to the TOTAL and agrees with the usual prices.",
+    "  Only if the receipt still does not add up after this, return what is written; never invent lines.",
     "- product_code: choose the product from the list that the item text means. Short forms are common:",
     "  'W-guard' = WEATHER GUARD, 'R-brush' = R BRUSH (roller brush), 's/s' or '5/5' often a size, 'O-paint' = oil paint, 'F-tape' = fibre tape, 'E paint' = E PAINTS,",
     "  sizes like 20l/20lt, 4lt, 1lt, 3\" = 3inch. Match colour and size. If you are not sure, return null rather than guessing.",
@@ -116,28 +128,40 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
     ...prods.map((p, i) => `P${i + 1}|${p.name}|${Number(p.selling_price)}`),
   ].join("\n");
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0,
-      response_format: { type: "json_schema", json_schema: { name: "receipts_and_notebook", strict: true, schema: SCHEMA } },
-      messages: [
-        { role: "system", content: prompt },
-        { role: "user", content: [
-          { type: "text", text: "Read this photo." },
-          { type: "image_url", image_url: { url: opts.image, detail: "high" } },
-        ] },
-      ],
-    }),
-  });
-  if (!res.ok) {
+  let json: { choices?: { message?: { content?: string } }[] } | null = null;
+  let lastError = "";
+  for (const model of MODELS) {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      // Stay inside the 60-second server limit.
+      signal: AbortSignal.timeout(55_000),
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        ...(isReasoning(model) ? { reasoning_effort: "low" } : { temperature: 0 }),
+        response_format: { type: "json_schema", json_schema: { name: "receipts_and_notebook", strict: true, schema: SCHEMA } },
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: [
+            { type: "text", text: "Read this photo. Check every receipt's lines against its TOTAL before you answer." },
+            { type: "image_url", image_url: { url: opts.image, detail: "high" } },
+          ] },
+        ],
+      }),
+    }).catch((e: unknown) => {
+      if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError"))
+        throw new ReaderError("Reading this photo took too long. Try again, or photograph fewer receipts per photo.");
+      throw e;
+    });
+    if (res.ok) { json = await res.json(); break; }
     const body = await res.text().catch(() => "");
-    const msg = (() => { try { return JSON.parse(body).error?.message as string; } catch { return ""; } })();
-    throw new ReaderError(`The photo reader failed (${res.status})${msg ? `: ${msg}` : "."}`);
+    const msg = (() => { try { return String(JSON.parse(body).error?.message ?? ""); } catch { return ""; } })();
+    lastError = `The photo reader failed (${res.status})${msg ? `: ${msg}` : "."}`;
+    // Model not available on this account (or not allowed these options): try the next one.
+    const modelProblem = res.status === 404 || (res.status === 400 && /model|reasoning|temperature|unsupported/i.test(msg)) || res.status === 403;
+    if (!modelProblem) break;
   }
-  const json = await res.json();
+  if (!json) throw new ReaderError(lastError || "The photo reader failed.");
   const content = json.choices?.[0]?.message?.content;
   if (!content) throw new ReaderError("The photo reader returned nothing. Try a clearer photo.");
   let raw: Raw;
@@ -149,11 +173,15 @@ export async function readPhoto(opts: { image: string; companyId: string; branch
     written_total: r.written_total === null ? null : round2(Number(r.written_total)),
     existing_sale_id: null,
     lines: r.lines.map((l) => {
+      const qty = Number(l.qty) || 0, amount = round2(Number(l.amount) || 0);
       const remembered = aliasMap.get(normalizeAlias(l.text));
       const fromReader = l.product_code ? idOfCode.get(l.product_code) ?? null : null;
+      // Backup: the shop's short forms, sizes and the unit price.
+      const fromMatcher = !remembered && !fromReader ? match(String(l.text ?? ""), qty > 0 ? amount / qty : null) : null;
+      const product_id = remembered ?? fromReader ?? fromMatcher;
       return {
-        qty: Number(l.qty) || 0, text: String(l.text ?? "").trim(), amount: round2(Number(l.amount) || 0),
-        product_id: remembered ?? fromReader, match: remembered ? "memory" : fromReader ? "reader" : null,
+        qty, text: String(l.text ?? "").trim(), amount,
+        product_id, match: remembered ? "memory" as const : product_id ? "reader" as const : null,
       };
     }),
   }));
