@@ -6,13 +6,13 @@ import { toast } from "sonner";
 import { Camera, CheckCircle2, AlertTriangle, Loader2, X, ExternalLink } from "lucide-react";
 import { createPhotoDrafts, type PhotoDraftResult } from "@/lib/photo-sales/actions";
 import { linesTotal, receiptIssues, round2, type PhotoReadResult, type ReadReceipt } from "@/lib/photo-sales/types";
-import { formatMoney, formatDate } from "@/lib/format";
+import { formatMoney, formatDate, formatQuantity } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { SearchSelect } from "@/components/common/search-select";
 
-interface ProductOpt { id: string; sku: string; name: string; price: number }
+interface ProductOpt { id: string; sku: string; name: string; price: number; brand: string | null; stock: number | null }
 interface Photo { key: string; file: File; url: string; status: "waiting" | "reading" | "done" | "error"; error?: string }
 type LinePatch = Partial<ReadReceipt["lines"][number]>;
 
@@ -46,7 +46,12 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const prodMap = React.useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const productOptions = React.useMemo(() => products.map((p) => ({ id: p.id, label: p.name, hint: p.sku, search: p.sku })), [products]);
+  // Search shows brand and stock: "Plascon · 12 in stock" / "Plascon · OUT OF STOCK".
+  const productOptions = React.useMemo(() => products.map((p) => ({
+    id: p.id, label: p.name,
+    hint: [p.brand, p.stock === null ? null : p.stock > 0 ? `${formatQuantity(p.stock)} in stock` : "OUT OF STOCK"].filter(Boolean).join(" · "),
+    search: `${p.sku} ${p.brand ?? ""}`,
+  })), [products]);
 
   function addFiles(list: FileList | null) {
     if (!list) return;
@@ -99,6 +104,14 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
   };
 
   const withIssues = receipts.map((r) => ({ r, issues: receiptIssues(r) }));
+  // Quantity asked for per product over all receipts (they become one sale), against branch stock.
+  const needed = new Map<string, number>();
+  for (const r of receipts) if (!r.existing_sale_id) for (const l of r.lines) if (l.product_id) needed.set(l.product_id, (needed.get(l.product_id) ?? 0) + (l.qty || 0));
+  const shortOf = (pid: string | null) => {
+    const p = pid ? prodMap.get(pid) : null;
+    return p && p.stock !== null && (needed.get(p.id) ?? 0) > p.stock ? p : null;
+  };
+  const shortList = Array.from(needed.keys()).map((pid) => shortOf(pid)).filter((p): p is ProductOpt => !!p);
   const fixable = withIssues.filter((x) => x.issues.length > 0 && !x.r.existing_sale_id);
   const already = withIssues.filter((x) => !!x.r.existing_sale_id);
   const readyAll = withIssues.filter((x) => x.issues.length === 0);
@@ -178,7 +191,7 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
             <Card><CardContent className="space-y-3 p-5">
               <h3 className="font-semibold">2. Correct these receipts</h3>
               <p className="text-xs text-muted-foreground">Look at the paper receipt and fix what is shown in red: choose the product, or correct the quantity or price. Add a missed item with + Add line. Once every item is complete the receipt moves to Ready. Product choices are remembered for next time.</p>
-              {fixable.map(({ r, issues }) => <ReceiptCard key={r.key} r={r} issues={issues} prodMap={prodMap} productOptions={productOptions} {...edit} />)}
+              {fixable.map(({ r, issues }) => <ReceiptCard key={r.key} r={r} issues={issues} prodMap={prodMap} productOptions={productOptions} needed={needed} {...edit} />)}
             </CardContent></Card>
           )}
           {already.length > 0 && (
@@ -189,7 +202,7 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
             <h3 className="font-semibold">{fixable.length ? "3" : "2"}. Ready: check the items</h3>
             {readyAll.length === 0 ? <p className="text-sm text-muted-foreground">No receipt is ready yet.</p> :
               readyAll.map(({ r }) => (
-                <ReceiptCard key={r.key} r={r} prodMap={prodMap} productOptions={productOptions} {...edit}
+                <ReceiptCard key={r.key} r={r} prodMap={prodMap} productOptions={productOptions} needed={needed} {...edit}
                   included={!skip[r.key]} onInclude={(v) => setSkip((s) => ({ ...s, [r.key]: !v }))} />
               ))}
           </CardContent></Card>
@@ -200,6 +213,15 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
               <p className="text-xs">The same product at the same price is put on one line. Add the payment on the draft, then post.</p>
             </div>
             <Button onClick={create} disabled={saving || ready.length === 0}>{saving ? "Creating…" : "Create sale draft"}</Button>
+            {shortList.length > 0 && (
+              <div className="w-full rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
+                <p className="font-medium text-destructive">⚠ Not enough stock at this branch for {shortList.length} product{shortList.length === 1 ? "" : "s"}:</p>
+                <ul className="mt-1 list-disc pl-5 text-xs">
+                  {shortList.map((p) => <li key={p.id}>{p.name}{p.brand ? ` (${p.brand})` : ""}: receipts need {formatQuantity(needed.get(p.id) ?? 0)}, in stock {formatQuantity(p.stock ?? 0)}</li>)}
+                </ul>
+                <p className="mt-1 text-xs text-muted-foreground">The draft can be saved, but it cannot be posted until the stock is there (receive the purchase or transfer first), or the product is corrected.</p>
+              </div>
+            )}
           </CardContent></Card>
         </>
       )}
@@ -207,11 +229,11 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
   );
 }
 
-function ReceiptCard({ r, issues, prodMap, productOptions, onProduct, onDate, onLine, onAdd, onRemove, included, onInclude }: {
+function ReceiptCard({ r, issues, prodMap, productOptions, needed, onProduct, onDate, onLine, onAdd, onRemove, included, onInclude }: {
   r: ReadReceipt; issues?: string[]; prodMap: Map<string, ProductOpt>; productOptions: { id: string; label: string; hint: string; search: string }[];
   onProduct: (rk: string, idx: number, pid: string) => void; onDate: (rk: string, d: string) => void;
   onLine: (rk: string, idx: number, patch: LinePatch) => void; onAdd: (rk: string) => void; onRemove: (rk: string, idx: number) => void;
-  included?: boolean; onInclude?: (v: boolean) => void;
+  included?: boolean; onInclude?: (v: boolean) => void; needed: Map<string, number>;
 }) {
   const num = (v: string) => (v === "" ? 0 : Number(v) || 0);
   return (
@@ -231,11 +253,12 @@ function ReceiptCard({ r, issues, prodMap, productOptions, onProduct, onDate, on
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-[10px] uppercase text-muted-foreground">
-            <tr><th className="px-3 pt-1.5 text-left">Qty</th><th className="px-2 pt-1.5 text-left">As written</th><th className="px-1 pt-1.5 text-left">Product</th><th className="px-1 pt-1.5 text-right">Price (each)</th><th className="px-2 pt-1.5 text-right">Amount</th><th /></tr>
+            <tr><th className="px-3 pt-1.5 text-left">Qty</th><th className="px-2 pt-1.5 text-left">As written</th><th className="px-1 pt-1.5 text-left">Product</th><th className="px-2 pt-1.5 text-left">Brand</th><th className="px-1 pt-1.5 text-right">Price (each)</th><th className="px-2 pt-1.5 text-right">Amount</th><th /></tr>
           </thead>
           <tbody>
             {r.lines.map((l, i) => {
               const p = l.product_id ? prodMap.get(l.product_id) : null;
+              const out = !!p && p.stock !== null && (needed.get(p.id) ?? 0) > p.stock;
               const unit = l.qty > 0 ? round2(l.amount / l.qty) : l.amount;
               // The price is what is corrected; the amount follows (qty x price).
               const setQty = (q: number) => onLine(r.key, i, { qty: q, amount: round2(unit * q) });
@@ -250,7 +273,13 @@ function ReceiptCard({ r, issues, prodMap, productOptions, onProduct, onDate, on
                     <SearchSelect value={l.product_id ?? ""} onChange={(v) => onProduct(r.key, i, v)} placeholder="Choose product…" options={productOptions}
                       className={l.product_id ? "" : "[&_button]:border-destructive"} />
                     {l.match === "memory" && <span className="text-[10px] text-muted-foreground">remembered</span>}
+                    {p && p.stock !== null && (
+                      <span className={`block text-[11px] ${out ? "font-semibold text-destructive" : "text-muted-foreground"}`}>
+                        {p.stock <= 0 ? "Out of stock" : out ? `Only ${formatQuantity(p.stock)} in stock (receipts need ${formatQuantity(needed.get(p.id) ?? 0)})` : `${formatQuantity(p.stock)} in stock`}
+                      </span>
+                    )}
                   </td>
+                  <td className="whitespace-nowrap px-2 py-1 text-xs text-muted-foreground">{p?.brand ?? "—"}</td>
                   <td className="px-1 py-1 text-right">
                     <Input aria-label="Price each" type="number" min="0" step="any" className={`ml-auto h-8 w-28 text-right tabular-nums ${unit > 0 ? "" : "border-destructive"}`}
                       value={unit || ""} onChange={(e) => setPrice(num(e.target.value))} />
