@@ -145,13 +145,15 @@ async function main() {
       && await fails(db, "select set_product_selling_price($1,$2,1.234,'{}'::jsonb,'x',$3)", [b50, owner, key()]));
     const avgBefore = n(await one(db, "select avg_unit_cost from stock_balances where branch_id=$1 and product_id=$2", [hq, b50]));
     const jBefore = Number(await one(db, "select count(*) from journal_entries where company_id=$1", [co]));
+    // Sales above the price may already have raised it (0044); compare with the price just before.
+    const priceBefore = Number(await one(db, "select selling_price from products where id=$1", [b50])).toFixed(2);
     const kp = key();
     const basis = { accounting_cost: 48500, commercial_overhead: 1500, mode: "margin", rate: 20, suggested: 62500 };
     await db.query("select set_product_selling_price($1,$2,62500,$3::jsonb,'margin review',$4)", [b50, owner, JSON.stringify(basis), kp]);
     await db.query("select set_product_selling_price($1,$2,62500,$3::jsonb,'margin review',$4)", [b50, owner, JSON.stringify(basis), kp]);
     check("price change recorded once with old / new price and its costing basis",
-      (await one(db, "select old_price || '>' || new_price || '|' || (basis->>'mode') || '|' || reason from product_price_changes where product_id=$1", [b50])) === "55000.00>62500.00|margin|margin review"
-      && Number(await one(db, "select count(*) from product_price_changes where product_id=$1", [b50])) === 1
+      (await one(db, "select old_price || '>' || new_price || '|' || (basis->>'mode') || '|' || reason from product_price_changes where product_id=$1 and basis->>'source' is null", [b50])) === `${priceBefore}>62500.00|margin|margin review`
+      && Number(await one(db, "select count(*) from product_price_changes where product_id=$1 and basis->>'source' is null", [b50])) === 1
       && n(await one(db, "select selling_price from products where id=$1", [b50])) === 62500);
     check("changing the price does not touch inventory cost or post anything",
       n(await one(db, "select avg_unit_cost from stock_balances where branch_id=$1 and product_id=$2", [hq, b50])) === avgBefore
