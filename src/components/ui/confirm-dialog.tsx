@@ -41,13 +41,11 @@ export function ConfirmDialog({
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (open) {
-      setReason("");
-      setError(null);
-      setPending(false);
-    }
-  }, [open]);
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) { setReason(""); setError(null); setPending(false); }
+  }
 
   async function handleConfirm() {
     if (requireReason && reason.trim().length === 0) {

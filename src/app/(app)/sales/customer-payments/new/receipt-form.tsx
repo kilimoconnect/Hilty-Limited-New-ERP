@@ -30,20 +30,21 @@ export function ReceiptForm({
   const [accountId, setAccountId] = React.useState(accounts[0]?.id ?? "");
   const [date, setDate] = React.useState(todayISO());
   const [reference, setReference] = React.useState("");
-  const [alloc, setAlloc] = React.useState<Record<string, string>>({});
+  const prefillFor = (cid: string): Record<string, string> => {
+    const inv = initialSaleId ? customers.find((c) => c.id === cid)?.invoices.find((i) => i.id === initialSaleId) : undefined;
+    return inv ? { [inv.id]: String(inv.outstanding) } : {};
+  };
+  const [alloc, setAlloc] = React.useState<Record<string, string>>(() => prefillFor(initialCustomerId ?? ""));
+  const [allocFor, setAllocFor] = React.useState(customerId);
+  if (allocFor !== customerId) {
+    // Another customer chosen: add the prefill for the invoice passed from the sale page, if it is theirs.
+    setAllocFor(customerId);
+    setAlloc((a) => ({ ...a, ...prefillFor(customerId) }));
+  }
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const customer = customers.find((c) => c.id === customerId);
-
-  React.useEffect(() => {
-    // Prefill allocation for the invoice passed from the sale page.
-    if (initialSaleId && customer) {
-      const inv = customer.invoices.find((i) => i.id === initialSaleId);
-      if (inv) setAlloc((a) => ({ ...a, [inv.id]: String(inv.outstanding) }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId]);
 
   const amount = round2((customer?.invoices ?? []).reduce((s, i) => s + Number(alloc[i.id] || 0), 0));
 

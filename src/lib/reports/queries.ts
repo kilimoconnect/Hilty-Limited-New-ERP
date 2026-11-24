@@ -114,7 +114,8 @@ export async function cashFlow(companyId: string, start: string, end: string) {
   const opening = round2(rows.reduce((s, r) => s + N(r.opening), 0));
   const EXCLUDED = new Set(["financial_opening_line", "financial_opening_line_void"]);
   const UNCLASSIFIED = new Set(["manual_journal", "manual_journal_void", "accounting_opening", "accounting_opening_void", "bank_adjustment", "bank_adjustment_void"]);
-  let operating = 0, investing = 0, financing = 0, excluded = 0, unclassified = 0;
+  const investing = 0, financing = 0;
+  let operating = 0, excluded = 0, unclassified = 0;
   for (const r of rows) {
     const m = N(r.movement);
     if (EXCLUDED.has(r.source_type)) excluded = round2(excluded + m);

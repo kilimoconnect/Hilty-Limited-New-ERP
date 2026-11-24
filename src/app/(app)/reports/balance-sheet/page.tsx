@@ -10,19 +10,21 @@ import { formatMoney, formatDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Balance Sheet" };
 
-export default async function BalanceSheetPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("report.balance_sheet");
-  const ctx = await getActiveContext();
-  const asOf = resolveAsOf(await props.searchParams);
-  const bs = await balanceSheet(ctx.companyId, asOf);
-
-  const Section = ({ title, rows, total }: { title: string; rows: { code: string; name: string; amount: number }[]; total: number }) => (
+function Section({ title, rows, total }: { title: string; rows: { code: string; name: string; amount: number }[]; total: number }) {
+  return (
     <div className="space-y-1">
       <p className="text-xs font-semibold uppercase text-muted-foreground">{title}</p>
       {rows.map((r) => <div key={r.code} className="flex justify-between py-0.5 text-sm"><span className="pl-2 text-muted-foreground">{r.name}</span><span className="tabular-nums">{formatMoney(r.amount)}</span></div>)}
       <div className="flex justify-between border-t border-border pt-1 text-sm font-semibold"><span>Total {title}</span><span className="tabular-nums">{formatMoney(total)}</span></div>
     </div>
   );
+}
+
+export default async function BalanceSheetPage(props: { searchParams: Promise<SP> }) {
+  await requirePermissionPage("report.balance_sheet");
+  const ctx = await getActiveContext();
+  const asOf = resolveAsOf(await props.searchParams);
+  const bs = await balanceSheet(ctx.companyId, asOf);
 
   return (
     <div>

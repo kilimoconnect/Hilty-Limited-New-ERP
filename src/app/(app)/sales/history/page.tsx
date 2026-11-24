@@ -13,7 +13,7 @@ import { ListToolbar } from "@/components/common/list-toolbar";
 import { DocStatusBadge, PayStatusBadge } from "@/components/common/doc-status-badge";
 import { formatMoney, formatDate } from "@/lib/format";
 import { pageBranch } from "@/lib/branch-filter";
-import { backOf, selfPath, withBack } from "@/lib/back-link";
+import { selfPath, withBack } from "@/lib/back-link";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";

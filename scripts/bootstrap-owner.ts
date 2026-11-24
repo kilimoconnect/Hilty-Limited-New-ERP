@@ -8,8 +8,8 @@ config();
 
 const COMPANY_CODE = "HILTY";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function findAuthUserByEmail(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   email: string,
 ): Promise<{ id: string; email?: string } | null> {

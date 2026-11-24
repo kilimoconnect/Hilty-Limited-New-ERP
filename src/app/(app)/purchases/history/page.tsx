@@ -16,7 +16,7 @@ import { TxnActions } from "@/components/common/txn-actions";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { pageBranch } from "@/lib/branch-filter";
-import { backOf, selfPath, withBack } from "@/lib/back-link";
+import { selfPath, withBack } from "@/lib/back-link";
 
 export const metadata: Metadata = { title: "Purchase History" };
 type SP = Promise<Record<string, string | string[] | undefined>>;

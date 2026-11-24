@@ -6,7 +6,6 @@ import { customerStatement } from "@/lib/reports/subledger";
 import { resolvePeriod, type SP } from "@/lib/reports/period";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Card, CardContent } from "@/components/ui/card";
 import { PeriodFilter, PrintButton, ParamSelect } from "@/components/reports/report-tools";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

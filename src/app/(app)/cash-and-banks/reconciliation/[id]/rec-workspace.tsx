@@ -20,7 +20,7 @@ export interface ErpEntry { journal_line_id: string; entry_date: string; source_
 export interface AccOpt { id: string; code: string; name: string }
 
 export function RecWorkspace({
-  recId, status, finalized, statementNet, declaredNet, canFinalize, isOwner,
+  recId, finalized, statementNet, declaredNet, canFinalize, isOwner,
   lines, erpEntries, adjustmentAccounts,
 }: {
   recId: string; status: string; finalized: boolean; statementNet: number; declaredNet: number;

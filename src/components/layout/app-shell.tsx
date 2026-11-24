@@ -17,6 +17,25 @@ export interface ShellUser {
   isOwner: boolean;
 }
 
+/* The sidebar's collapsed setting, kept in this browser (localStorage). */
+const SIDEBAR_KEY = "letiq_sidebar_collapsed";
+const sidebarListeners = new Set<() => void>();
+let sidebarMemory = false; // used when localStorage is unavailable
+function readSidebar(): boolean {
+  try { return localStorage.getItem(SIDEBAR_KEY) === "1"; } catch { return sidebarMemory; }
+}
+function writeSidebar(next: boolean) {
+  sidebarMemory = next;
+  try { localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+  sidebarListeners.forEach((l) => l());
+}
+function subscribeSidebar(cb: () => void) {
+  sidebarListeners.add(cb);
+  const onStorage = (e: StorageEvent) => { if (e.key === SIDEBAR_KEY) cb(); };
+  window.addEventListener("storage", onStorage);
+  return () => { sidebarListeners.delete(cb); window.removeEventListener("storage", onStorage); };
+}
+
 export function AppShell({
   user,
   permissions,
@@ -35,27 +54,11 @@ export function AppShell({
   activeBranchId: string | null;
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = React.useState(false);
+  const collapsed = React.useSyncExternalStore(subscribeSidebar, readSidebar, () => false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem("letiq_sidebar_collapsed") === "1");
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   function toggleCollapsed() {
-    setCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("letiq_sidebar_collapsed", next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+    writeSidebar(!collapsed);
   }
 
   return (
