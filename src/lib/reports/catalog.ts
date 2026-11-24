@@ -2,8 +2,9 @@
  * Every report, with its own permission ("report.<slug>") so a role can be
  * given exactly the reports it needs. Used by the menu, the Reports page and
  * each report's page guard. `legacy` is the broad permission that opened the
- * report before 0046; the migration grants the new permission to every role
- * that had it, so nobody lost access.
+ * report before 0046 (0046 granted the new permission to every role that had
+ * it; 0047 removed the broad "reports.*" permissions). The role defaults in
+ * permissions.ts still use it to say which reports a role gets.
  */
 export interface ReportDef {
   slug: string;

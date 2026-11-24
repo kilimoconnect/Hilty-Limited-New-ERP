@@ -34,7 +34,7 @@ export default async function ItemActivityPage(props: { searchParams: Promise<SP
   const branches = reportBranches(ctx, branch);
   // Cost of sales and gross profit are for the Owner only.
   const showCost = ctx.user.isOwner;
-  const showPurchases = can(ctx.user, "reports.view_purchases");
+  const showPurchases = can(ctx.user, "report.purchase_summary");
   const admin = createAdminClient();
 
   const products = await selectAll<{ id: string; sku: string; name: string }>(() =>

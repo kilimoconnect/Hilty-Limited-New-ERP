@@ -170,12 +170,7 @@ export const PERMISSION_DEFS: PermissionDef[] = [
     "transfer_create", "transfer_dispatch", "transfer_receive",
   ]),
   ...p("kardex", ["view", "export"]),
-  ...p("reports", [
-    "view", "export",
-    "view_profit_loss", "view_balance_sheet", "view_cash_flow", "view_vat",
-    "view_receivables", "view_payables", "view_inventory_valuation",
-    "view_sales", "view_purchases", "view_cashup",
-  ]),
+  // The old broad "reports.*" permissions were replaced by one per report ("report.*", below) in 0047.
   ...p("accounting", [
     "view", "view_journals", "create_manual_journal", "post_manual_journal",
     "post_control_account_adjustment", "view_general_ledger", "view_trial_balance",
@@ -346,14 +341,16 @@ const BASE_ROLE_DEFS: RoleDef[] = [
 ];
 
 /**
- * Each role also gets the per-report permissions for the reports it could
- * open before they existed (the report's broad "legacy" permission), and
- * Sales from Photos where it may create sales.
+ * The role lists above still name the reports a role gets by the old broad
+ * "reports.*" codes (e.g. reports.view_sales). Here they become the
+ * per-report permissions ("report.*"), and the old codes are dropped; roles
+ * that may create sales also get Sales from Photos.
  */
 export const ROLE_DEFS: RoleDef[] = BASE_ROLE_DEFS.map((r) => {
   if (r.permissions === "*") return r;
   const has = new Set<string>(r.permissions);
   const extra = REPORTS.filter((rep) => has.has(rep.legacy)).map((rep) => `report.${rep.slug}` as PermissionCode);
   if (has.has("sales.create")) extra.push("sales.from_photos");
-  return { ...r, permissions: Array.from(new Set([...r.permissions, ...extra])) };
+  const kept = r.permissions.filter((c) => !c.startsWith("reports."));
+  return { ...r, permissions: Array.from(new Set([...kept, ...extra])) };
 });

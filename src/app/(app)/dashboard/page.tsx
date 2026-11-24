@@ -150,7 +150,7 @@ export default async function DashboardPage(props: { searchParams: Promise<SP> }
   });
 
   // Company financial summary for the period (whole company only: ledgers are company-wide).
-  const showFin = can(user, "reports.view_profit_loss") && !branches;
+  const showFin = can(user, "report.profit_and_loss") && !branches;
   let fin: { label: string; value: string }[] = [];
   if (showFin) {
     const [pl, ara, apa, vat] = await Promise.all([
