@@ -23,7 +23,7 @@ const N = (v: unknown) => Number(v ?? 0);
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
 export default async function TopItemsPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_sales");
+  await requirePermissionPage("report.top_items");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = reportPeriod(sp, addDays(todayISO(), -29));

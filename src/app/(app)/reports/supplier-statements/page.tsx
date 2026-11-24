@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const metadata: Metadata = { title: "Supplier Statement" };
 
 export default async function SupplierStatementsPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_payables");
+  await requirePermissionPage("report.supplier_statements");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);

@@ -15,7 +15,7 @@ import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 export const metadata: Metadata = { title: "Transfer Costing" };
 
 export default async function TransferCostingPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("inventory.view_cost");
+  await requirePermissionPage("report.transfer_costing");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);

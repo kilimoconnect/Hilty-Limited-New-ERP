@@ -35,7 +35,7 @@ interface ALine {
 const N = (v: unknown) => Number(v ?? 0);
 
 export default async function StockMovementsPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("inventory.view");
+  await requirePermissionPage("report.stock_movements");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const view = str(sp, "view") === "adjustments" ? "adjustments" : "transfers";

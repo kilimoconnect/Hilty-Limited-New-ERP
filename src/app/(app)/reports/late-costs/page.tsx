@@ -23,7 +23,7 @@ const SRC: Record<string, string> = {
 };
 
 export default async function LateCostsPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_inventory_valuation");
+  await requirePermissionPage("report.late_costs");
   const ctx = await getActiveContext();
   const { start, end } = resolvePeriod(await props.searchParams);
   const admin = createAdminClient();

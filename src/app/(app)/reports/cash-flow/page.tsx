@@ -11,7 +11,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "Cash Flow" };
 
 export default async function CashFlowPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_cash_flow");
+  await requirePermissionPage("report.cash_flow");
   const ctx = await getActiveContext();
   const { start, end } = resolvePeriod(await props.searchParams);
   const cf = await cashFlow(ctx.companyId, start, end);

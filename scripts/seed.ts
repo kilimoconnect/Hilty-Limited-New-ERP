@@ -102,8 +102,8 @@ async function seedPermissionsAndRoles(db: Client) {
       `insert into roles (code, name, description, is_system, is_protected, is_active)
        values ($1,$2,$3,$4,$5,true)
        on conflict (code) do update
-         set name = excluded.name, description = excluded.description,
-             is_system = excluded.is_system, is_protected = excluded.is_protected
+         -- Name and description are kept: the Owner may have renamed the role.
+         set is_system = excluded.is_system, is_protected = excluded.is_protected
        returning id`,
       [r.code, r.name, r.description, r.isSystem, r.isProtected],
     );

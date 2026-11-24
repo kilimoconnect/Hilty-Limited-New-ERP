@@ -15,7 +15,7 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   let user;
   try { user = await assertActiveUser(); } catch { return Response.json({ error: "Not signed in." }, { status: 401 }); }
-  if (!userHasPermission(user, "sales.create")) return Response.json({ error: "You do not have permission to create sales." }, { status: 403 });
+  if (!userHasPermission(user, "sales.from_photos")) return Response.json({ error: "You do not have permission to use Sales from Photos." }, { status: 403 });
 
   let body: { branchId?: string; photo?: number; image?: string };
   try { body = await req.json(); } catch { return Response.json({ error: "Bad request." }, { status: 400 }); }

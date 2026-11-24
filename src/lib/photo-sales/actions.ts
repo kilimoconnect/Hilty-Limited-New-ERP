@@ -34,6 +34,7 @@ export async function createPhotoDrafts(input: PhotoDraftInput): Promise<PhotoDr
   const out: PhotoDraftResult = { ok: true, drafts: [], refused: [] };
   try {
     const user = await assertActiveUser();
+    assertPermission(user, "sales.from_photos");
     assertPermission(user, "sales.create");
     assertBranchAccess(user, input.branchId);
     const ctx = await getActiveContext();

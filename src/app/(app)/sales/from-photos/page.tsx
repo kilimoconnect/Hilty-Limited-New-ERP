@@ -11,7 +11,7 @@ import { PhotoImport } from "./photo-import";
 export const metadata: Metadata = { title: "Sales from Photos" };
 
 export default async function SalesFromPhotosPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requirePermissionPage("sales.create");
+  await requirePermissionPage("sales.from_photos");
   const base = await getActiveContext();
   const step = branchStep(base, await props.searchParams);
   if (step.choose) return <BranchChoice title="Sales from Photos" branches={base.branches} current={base.branchId} />;

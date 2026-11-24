@@ -17,7 +17,7 @@ import { formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "Costing Exceptions" };
 
 export default async function ExceptionsPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("inventory.view_cost");
+  await requirePermissionPage("report.exceptions");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const kind = str(sp, "kind");

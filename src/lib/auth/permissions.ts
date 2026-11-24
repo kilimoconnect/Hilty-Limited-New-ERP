@@ -8,6 +8,8 @@
  * which belong to the Owner.
  */
 
+import { REPORTS } from "../reports/catalog";
+
 export const RESOURCES = [
   "dashboard",
   "sales",
@@ -33,6 +35,8 @@ export const RESOURCES = [
   "rebagging",
   "documents",
   "fx",
+  // One permission per report (0046)
+  "report",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -108,6 +112,13 @@ export const ACTIONS = [
   "view_cashup",
   // Purchase orders (0040)
   "order",
+  // Sales from photos (0046)
+  "from_photos",
+  // One permission per report (0046): report.<slug>, see src/lib/reports/catalog.ts
+  "cash_up", "sales_summary", "purchase_summary", "item_activity", "stock_movements", "top_items",
+  "profit_and_loss", "balance_sheet", "cash_flow", "vat", "receivables_ageing", "payables_ageing",
+  "customer_statements", "supplier_statements", "inventory_valuation", "late_costs", "cost_reconciliation",
+  "shipment_costing", "rebagging_costing", "transfer_costing", "branch_landed_cost", "profitability", "exceptions",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -145,7 +156,7 @@ export const PERMISSION_DEFS: PermissionDef[] = [
   ...p("dashboard", ["view"]),
   ...p("sales", [
     ...TXN_ACTIONS,
-    "view_cost", "override_price", "sell_below_cost", "receive_payment", "create_return",
+    "view_cost", "override_price", "sell_below_cost", "receive_payment", "create_return", "from_photos",
   ]),
   ...p("purchases", [...TXN_ACTIONS, "view_cost", "record_payment", "create_return", "order"]),
   ...p("other_income", TXN_ACTIONS),
@@ -185,6 +196,11 @@ export const PERMISSION_DEFS: PermissionDef[] = [
   ...p("documents", ["view_financial", "view_licence", "upload"]),
   ...p("fx", ["settle", "revalue", "enter_rate"]),
   ...p("inventory", ["transfer_view", "transfer_resolve", "transfer_cost"]),
+  // One per report, named after the report.
+  ...REPORTS.map((r) => ({
+    resource: "report" as const, action: r.slug as Action, code: `report.${r.slug}` as PermissionCode,
+    description: `Open the ${r.title.replace(/ Report$/, "")} report`,
+  })),
 ];
 
 export const OWNER_ROLE = "OWNER";
@@ -199,7 +215,7 @@ export interface RoleDef {
   permissions: "*" | PermissionCode[];
 }
 
-export const ROLE_DEFS: RoleDef[] = [
+const BASE_ROLE_DEFS: RoleDef[] = [
   {
     code: OWNER_ROLE,
     name: "Owner",
@@ -328,3 +344,16 @@ export const ROLE_DEFS: RoleDef[] = [
     ],
   },
 ];
+
+/**
+ * Each role also gets the per-report permissions for the reports it could
+ * open before they existed (the report's broad "legacy" permission), and
+ * Sales from Photos where it may create sales.
+ */
+export const ROLE_DEFS: RoleDef[] = BASE_ROLE_DEFS.map((r) => {
+  if (r.permissions === "*") return r;
+  const has = new Set<string>(r.permissions);
+  const extra = REPORTS.filter((rep) => has.has(rep.legacy)).map((rep) => `report.${rep.slug}` as PermissionCode);
+  if (has.has("sales.create")) extra.push("sales.from_photos");
+  return { ...r, permissions: Array.from(new Set([...r.permissions, ...extra])) };
+});

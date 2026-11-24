@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { REPORTS } from "@/lib/reports/catalog";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -45,7 +46,7 @@ export const NAV: NavEntry[] = [
     requires: "sales.view",
     items: [
       { label: "Create Sale", href: "/sales/new", enabled: true, requires: "sales.create" },
-      { label: "Sales from Photos", href: "/sales/from-photos", enabled: true, requires: "sales.create" },
+      { label: "Sales from Photos", href: "/sales/from-photos", enabled: true, requires: "sales.from_photos" },
       { label: "Sales History", href: "/sales/history", enabled: true, requires: "sales.view" },
       { label: "Customer Payments", href: "/sales/customer-payments", enabled: true, requires: "sales.view" },
     ],
@@ -145,32 +146,8 @@ export const NAV: NavEntry[] = [
     label: "Reports",
     icon: BarChart3,
     enabled: true,
-    requires: "reports.view",
-    items: [
-      { label: "Daily Cash-up", href: "/reports/cash-up", enabled: true, requires: "reports.view_cashup" },
-      { label: "Sales Summary", href: "/reports/sales-summary", enabled: true, requires: "reports.view_sales" },
-      { label: "Purchase Summary", href: "/reports/purchase-summary", enabled: true, requires: "reports.view_purchases" },
-      { label: "Item Activity", href: "/reports/item-activity", enabled: true, requires: "reports.view_sales" },
-      { label: "Stock Movements", href: "/reports/stock-movements", enabled: true, requires: "inventory.view" },
-      { label: "Top Items & Slow Movers", href: "/reports/top-items", enabled: true, requires: "reports.view_sales" },
-      { label: "Profit & Loss", href: "/reports/profit-and-loss", enabled: true, requires: "reports.view_profit_loss" },
-      { label: "Balance Sheet", href: "/reports/balance-sheet", enabled: true, requires: "reports.view_balance_sheet" },
-      { label: "Cash Flow", href: "/reports/cash-flow", enabled: true, requires: "reports.view_cash_flow" },
-      { label: "VAT Report", href: "/reports/vat", enabled: true, requires: "reports.view_vat" },
-      { label: "Receivables Ageing", href: "/reports/receivables-ageing", enabled: true, requires: "reports.view_receivables" },
-      { label: "Payables Ageing", href: "/reports/payables-ageing", enabled: true, requires: "reports.view_payables" },
-      { label: "Customer Statements", href: "/reports/customer-statements", enabled: true, requires: "reports.view_receivables" },
-      { label: "Supplier Statements", href: "/reports/supplier-statements", enabled: true, requires: "reports.view_payables" },
-      { label: "Inventory Valuation", href: "/reports/inventory-valuation", enabled: true, requires: "reports.view_inventory_valuation" },
-      { label: "Late Cost Adjustments", href: "/reports/late-costs", enabled: true, requires: "reports.view_inventory_valuation" },
-      { label: "Cost Reconciliation", href: "/reports/cost-reconciliation", enabled: true, requires: "reports.view_inventory_valuation" },
-      { label: "Shipment Costing", href: "/reports/shipment-costing", enabled: true, requires: "imports.view_cost", feature: "imports" },
-      { label: "Rebagging Costing", href: "/reports/rebagging-costing", enabled: true, requires: "inventory.view_cost", feature: "rebagging" },
-      { label: "Transfer Costing", href: "/reports/transfer-costing", enabled: true, requires: "inventory.view_cost" },
-      { label: "Branch Landed Cost", href: "/reports/branch-landed-cost", enabled: true, requires: "inventory.view_cost" },
-      { label: "Profitability", href: "/reports/profitability", enabled: true, requires: "reports.view_profit_loss" },
-      { label: "Costing Exceptions", href: "/reports/exceptions", enabled: true, requires: "inventory.view_cost" },
-    ],
+    // Shown when at least one report is allowed; each report has its own permission.
+    items: REPORTS.map((r) => ({ label: r.title, href: r.href, enabled: true, requires: `report.${r.slug}`, feature: r.feature })),
   },
   { label: "Admin", icon: Settings, href: "/admin", enabled: true, ownerOnly: true },
 ];

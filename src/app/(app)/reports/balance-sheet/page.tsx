@@ -11,7 +11,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "Balance Sheet" };
 
 export default async function BalanceSheetPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_balance_sheet");
+  await requirePermissionPage("report.balance_sheet");
   const ctx = await getActiveContext();
   const asOf = resolveAsOf(await props.searchParams);
   const bs = await balanceSheet(ctx.companyId, asOf);

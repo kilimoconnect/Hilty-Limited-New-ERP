@@ -1,37 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requirePermissionPage } from "@/lib/auth/guards";
+import { redirect } from "next/navigation";
+import { requireActiveUser } from "@/lib/auth/guards";
 import { getActiveContext, can } from "@/lib/context";
+import { isFeatureEnabled, type FeatureFlag } from "@/lib/features";
+import { REPORTS, reportPermission } from "@/lib/reports/catalog";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata: Metadata = { title: "Financial Reports" };
+export const metadata: Metadata = { title: "Reports" };
 
-const REPORTS: { href: string; title: string; desc: string; perm: string }[] = [
-  { href: "/reports/cash-up", title: "Daily Cash-up", desc: "Each branch till by day: in, out, banked, expected and counted", perm: "reports.view_cashup" },
-  { href: "/reports/sales-summary", title: "Sales Summary", desc: "Sales by day, branch, salesperson, category or payment method", perm: "reports.view_sales" },
-  { href: "/reports/purchase-summary", title: "Purchase Summary", desc: "Purchases by day, branch, supplier, category or payment account", perm: "reports.view_purchases" },
-  { href: "/reports/item-activity", title: "Item Activity", desc: "One product: every sale and purchase, and its stock", perm: "reports.view_sales" },
-  { href: "/reports/stock-movements", title: "Stock Movements", desc: "Transfers between branches and stock adjustments", perm: "inventory.view" },
-  { href: "/reports/top-items", title: "Top Items & Slow Movers", desc: "Best sellers, and stock that is not selling", perm: "reports.view_sales" },
-  { href: "/reports/profit-and-loss", title: "Profit & Loss", desc: "Revenue, cost of sales and expenses", perm: "reports.view_profit_loss" },
-  { href: "/reports/balance-sheet", title: "Balance Sheet", desc: "Assets, liabilities and equity as of a date", perm: "reports.view_balance_sheet" },
-  { href: "/reports/cash-flow", title: "Cash Flow", desc: "Cash movements by activity", perm: "reports.view_cash_flow" },
-  { href: "/reports/vat", title: "VAT Report", desc: "Output and input VAT with reconciliation", perm: "reports.view_vat" },
-  { href: "/reports/receivables-ageing", title: "Receivables Ageing", desc: "Customer balances by age bucket", perm: "reports.view_receivables" },
-  { href: "/reports/payables-ageing", title: "Payables Ageing", desc: "Supplier balances by age bucket", perm: "reports.view_payables" },
-  { href: "/reports/customer-statements", title: "Customer Statements", desc: "Statement of account for a customer", perm: "reports.view_receivables" },
-  { href: "/reports/supplier-statements", title: "Supplier Statements", desc: "Statement of account for a supplier", perm: "reports.view_payables" },
-  { href: "/reports/inventory-valuation", title: "Inventory Valuation", desc: "Stock value by product & branch", perm: "reports.view_inventory_valuation" },
-];
-
+/** Every report the user may open (each report has its own permission). */
 export default async function ReportsIndex() {
-  await requirePermissionPage("reports.view");
+  await requireActiveUser();
   const ctx = await getActiveContext();
-  const items = REPORTS.filter((r) => can(ctx.user, r.perm));
+  const features = new Map<string, boolean>();
+  for (const f of new Set(REPORTS.map((r) => r.feature).filter(Boolean) as string[])) features.set(f, await isFeatureEnabled(ctx.companyId, f as FeatureFlag));
+  const items = REPORTS.filter((r) => can(ctx.user, reportPermission(r.slug)) && (!r.feature || features.get(r.feature)));
+  if (items.length === 0) redirect("/unauthorized");
   return (
     <div>
-      <PageHeader title="Financial Reports" description="All reports are generated from posted journal entries." />
+      <PageHeader title="Reports" description="Choose a report. Each one can be given to a role on its own." />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((r) => (
           <Link key={r.href} href={r.href}>

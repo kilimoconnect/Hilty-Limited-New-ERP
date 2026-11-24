@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "Receivables Ageing" };
 
 export default async function ReceivablesAgeingPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_receivables");
+  await requirePermissionPage("report.receivables_ageing");
   const ctx = await getActiveContext();
   const asOf = resolveAsOf(await props.searchParams);
   const data = await receivablesAgeing(ctx.companyId, asOf);

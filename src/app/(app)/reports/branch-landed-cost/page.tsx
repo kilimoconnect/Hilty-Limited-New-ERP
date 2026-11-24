@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Branch Landed Cost" };
 const PACKS = ["50", "25", "5"];
 
 export default async function BranchLandedCostPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("inventory.view_cost");
+  await requirePermissionPage("report.branch_landed_cost");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { branch, branchParam } = pageBranch(ctx, sp);

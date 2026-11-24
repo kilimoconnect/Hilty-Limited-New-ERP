@@ -25,7 +25,7 @@ const GROUPS = [
 const N = (v: unknown) => Number(v ?? 0);
 
 export default async function SalesSummaryPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_sales");
+  await requirePermissionPage("report.sales_summary");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = reportPeriod(sp);

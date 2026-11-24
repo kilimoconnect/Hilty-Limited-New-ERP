@@ -17,7 +17,7 @@ import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 export const metadata: Metadata = { title: "Shipment Costing" };
 
 export default async function ShipmentCostingPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("imports.view_cost");
+  await requirePermissionPage("report.shipment_costing");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);

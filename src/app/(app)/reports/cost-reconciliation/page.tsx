@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Cost Reconciliation" };
 const MONEY = new Set(["inventory_gl", "transit_gl", "import_transit_gl", "grir", "accruals", "ap", "supplier_credits"]);
 
 export default async function CostReconciliationPage() {
-  await requirePermissionPage("reports.view_inventory_valuation");
+  await requirePermissionPage("report.cost_reconciliation");
   const ctx = await getActiveContext();
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("cost_reconciliation_checks", { p_company: ctx.companyId });

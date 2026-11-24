@@ -31,7 +31,7 @@ function addDays(iso: string, d: number) { const x = new Date(`${iso}T00:00:00Z`
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
 export default async function CashUpPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_cashup");
+  await requirePermissionPage("report.cash_up");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const today = todayISO();

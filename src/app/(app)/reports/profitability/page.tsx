@@ -23,7 +23,7 @@ const DIMS = [
 interface Row { key: string; label: string; qty: number; revenue: number; cogs: number; returnsRev: number; returnsCogs: number; late: number }
 
 export default async function ProfitabilityPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_profit_loss");
+  await requirePermissionPage("report.profitability");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);

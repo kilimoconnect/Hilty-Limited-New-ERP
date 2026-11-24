@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const metadata: Metadata = { title: "Inventory Valuation" };
 
 export default async function InventoryValuationPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_inventory_valuation");
+  await requirePermissionPage("report.inventory_valuation");
   const ctx = await getActiveContext();
   const asOf = resolveAsOf(await props.searchParams);
   const isToday = asOf >= todayISO();

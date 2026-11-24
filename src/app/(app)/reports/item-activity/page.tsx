@@ -24,7 +24,7 @@ interface PurLine { id: string; quantity: number; unit_cost: number; gross_amoun
 const N = (v: unknown) => Number(v ?? 0);
 
 export default async function ItemActivityPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_sales");
+  await requirePermissionPage("report.item_activity");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = reportPeriod(sp);

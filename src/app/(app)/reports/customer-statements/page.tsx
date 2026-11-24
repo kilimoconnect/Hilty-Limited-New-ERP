@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export const metadata: Metadata = { title: "Customer Statement" };
 
 export default async function CustomerStatementsPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_receivables");
+  await requirePermissionPage("report.customer_statements");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);

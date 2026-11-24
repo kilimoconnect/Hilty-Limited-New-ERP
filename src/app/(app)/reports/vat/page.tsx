@@ -12,7 +12,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 export const metadata: Metadata = { title: "VAT Report" };
 
 export default async function VatReportPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("reports.view_vat");
+  await requirePermissionPage("report.vat");
   const ctx = await getActiveContext();
   const { start, end } = resolvePeriod(await props.searchParams);
   const v = await vatReport(ctx.companyId, start, end);

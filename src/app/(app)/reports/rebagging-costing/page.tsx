@@ -15,7 +15,7 @@ import { formatDate, formatMoney, formatQuantity } from "@/lib/format";
 export const metadata: Metadata = { title: "Rebagging Costing" };
 
 export default async function RebaggingCostingPage(props: { searchParams: Promise<SP> }) {
-  await requirePermissionPage("inventory.view_cost");
+  await requirePermissionPage("report.rebagging_costing");
   const ctx = await getActiveContext();
   const sp = await props.searchParams;
   const { start, end } = resolvePeriod(sp);
