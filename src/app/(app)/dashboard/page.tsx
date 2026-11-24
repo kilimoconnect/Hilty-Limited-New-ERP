@@ -24,18 +24,39 @@ export const metadata: Metadata = { title: "Dashboard" };
 
 type SP = Record<string, string | string[] | undefined>;
 const PERIODS = [
-  { id: "today", label: "Today" }, { id: "yesterday", label: "Yesterday" }, { id: "week", label: "This week" },
-  { id: "month", label: "This month" }, { id: "30d", label: "Last 30 days" },
+  { id: "today", label: "Today" }, { id: "yesterday", label: "Yesterday" },
+  { id: "week", label: "This week" }, { id: "lastweek", label: "Last week" },
+  { id: "month", label: "This month" }, { id: "lastmonth", label: "Last month" },
+  { id: "30d", label: "Last 30 days" }, { id: "3m", label: "Last 3 months" }, { id: "6m", label: "Last 6 months" },
+  { id: "year", label: "This year" }, { id: "12m", label: "Last 12 months" },
 ] as const;
 type PeriodId = (typeof PERIODS)[number]["id"];
 
+/** The same day n months earlier (31 Mar - 1 month = 28/29 Feb). */
+function monthsBack(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 - n, 1));
+  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, last));
+  return target.toISOString().slice(0, 10);
+}
+
 /** Start and end (inclusive, company dates) of a dashboard period. Weeks start on Monday. */
 function periodRange(id: PeriodId, today: string): { start: string; end: string } {
+  const monday = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const monthStart = `${today.slice(0, 8)}01`;
   switch (id) {
     case "yesterday": { const y = addDays(today, -1); return { start: y, end: y }; }
-    case "week": { const dow = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7; return { start: addDays(today, -dow), end: today }; }
-    case "month": return { start: `${today.slice(0, 8)}01`, end: today };
+    case "week": return { start: monday, end: today };
+    case "lastweek": return { start: addDays(monday, -7), end: addDays(monday, -1) };
+    case "month": return { start: monthStart, end: today };
+    case "lastmonth": { const end = addDays(monthStart, -1); return { start: `${end.slice(0, 8)}01`, end }; }
     case "30d": return { start: addDays(today, -29), end: today };
+    // Last N months: from the day after the same date N months ago, up to today.
+    case "3m": return { start: addDays(monthsBack(today, 3), 1), end: today };
+    case "6m": return { start: addDays(monthsBack(today, 6), 1), end: today };
+    case "year": return { start: `${today.slice(0, 4)}-01-01`, end: today };
+    case "12m": return { start: addDays(monthsBack(today, 12), 1), end: today };
     default: return { start: today, end: today };
   }
 }
