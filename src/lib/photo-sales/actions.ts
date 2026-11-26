@@ -24,9 +24,10 @@ export interface PhotoDraftResult {
 
 /**
  * Combines all reviewed receipts into one sale draft (one per receipt date,
- * as a sale has one date): Walk-in, unit price = line amount / qty, the same
- * product at the same price merged into one line, and the receipt numbers as
- * the reference ("Receipts 0195, 0196, 0197"). Payment is entered on the
+ * as a sale has one date): Walk-in, unit price = line amount / qty, every
+ * receipt line kept as its own line in receipt order (never merged: the same
+ * product may be sold at different prices), and the receipt numbers as the
+ * reference ("Receipts 0195, 0196, 0197"). Payment is entered on the
  * draft before posting. Incomplete or already-entered receipts are refused
  * here as well. Nothing is posted.
  */
@@ -55,20 +56,16 @@ export async function createPhotoDrafts(input: PhotoDraftInput): Promise<PhotoDr
     const remember: { text: string; product_id: string }[] = [];
     for (const [date, group] of Array.from(byDate).sort(([a], [b]) => a.localeCompare(b))) {
       const numbers = group.map((r) => r.number).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      // Same product at the same unit price -> one line with the quantities added.
-      const merged = new Map<string, { product_id: string; quantity: number; unit_price: number; discount: number; tax_code_id: null }>();
-      for (const r of group) for (const l of r.lines) {
-        const unit = round2(l.amount / l.qty);
-        const k = `${l.product_id}|${unit}`;
-        const m = merged.get(k);
-        if (m) m.quantity = Math.round((m.quantity + l.qty) * 10000) / 10000;
-        else merged.set(k, { product_id: l.product_id!, quantity: l.qty, unit_price: unit, discount: 0, tax_code_id: null });
-      }
+      // Every receipt line stays its own line, in receipt order (never merged).
+      const ordered = group.slice().sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }));
+      const lines = ordered.flatMap((r) => r.lines.map((l) => ({
+        product_id: l.product_id!, quantity: l.qty, unit_price: round2(l.amount / l.qty), discount: 0, tax_code_id: null,
+      })));
       const res = await saveSaleDraft({
         branchId: input.branchId, documentDate: date, customerId: walkIn.id,
         customerReference: receiptsReference(numbers),
         notes: `From photos: cash sale receipts ${numbers.join(", ")}`,
-        lines: Array.from(merged.values()), payments: [],
+        lines, payments: [],
       });
       if (!res.ok || !res.id) { out.drafts.push({ date, numbers, error: res.error ?? "Could not save the draft." }); continue; }
       out.drafts.push({ date, numbers, id: res.id });

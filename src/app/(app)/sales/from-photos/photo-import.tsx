@@ -213,7 +213,7 @@ export function PhotoImport({ branchId, products }: { branchId: string; products
           <Card><CardContent className="flex flex-wrap items-center justify-between gap-2 p-5">
             <div className="text-sm text-muted-foreground">
               <p>{ready.length} receipt{ready.length === 1 ? "" : "s"} ({ready.map((r) => r.number).join(", ") || "none"}) will be combined into {readyDates.length > 1 ? `${readyDates.length} sale drafts, one per date` : "one sale draft"} for Walk-in · {formatMoney(round2(ready.reduce((s, r) => s + linesTotal(r), 0)))}.</p>
-              <p className="text-xs">The same product at the same price is put on one line. Add the payment on the draft, then post.</p>
+              <p className="text-xs">Every receipt line is kept as its own line, even the same product. Add the payment on the draft, then post.</p>
             </div>
             <Button onClick={create} disabled={saving || ready.length === 0}>{saving ? "Creating…" : "Create sale draft"}</Button>
             {shortList.length > 0 && (
