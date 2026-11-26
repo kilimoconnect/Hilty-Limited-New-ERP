@@ -86,8 +86,7 @@ export function SaleForm({
 
   function addProduct(pid: string) {
     if (!pid) return;
-    const existing = lines.find((l) => l.product_id === pid);
-    if (existing) { setLine(existing.key, { quantity: String(Number(existing.quantity || 0) + 1) }); return; }
+    // Always a new line, even for a product already on the sale (it may be sold at another price).
     const p = prodMap.get(pid);
     setLines((ls) => [...ls, { key: key(), product_id: pid, quantity: "1", unit_price: p ? String(p.selling_price) : "", tax_code_id: p?.tax_code_id ?? NONE }]);
   }
@@ -102,14 +101,18 @@ export function SaleForm({
   const balance = round2(totals.grand - paidTotal);
 
   // Stock: what each tracked product asks for must be on hand (the server re-checks).
-  const short = lines.filter((l) => prodMap.get(l.product_id)?.track_inventory !== false && Number(l.quantity || 0) > (stock[l.product_id] ?? 0));
+  // A product may be on several lines: stock is checked against all of them together.
+  const qtyByProduct = new Map<string, number>();
+  for (const l of lines) qtyByProduct.set(l.product_id, (qtyByProduct.get(l.product_id) ?? 0) + Number(l.quantity || 0));
+  const short = lines.filter((l) => prodMap.get(l.product_id)?.track_inventory !== false && (qtyByProduct.get(l.product_id) ?? 0) > (stock[l.product_id] ?? 0));
+  const shortProducts = Array.from(new Set(short.map((l) => l.product_id)));
   const validLines = lines.filter((l) => l.product_id && Number(l.quantity) > 0);
 
   // Why Post is not available yet (shown under the payments).
   const blockers: string[] = [];
   if (validLines.length === 0) blockers.push("Add at least one product.");
   if (lines.some((l) => !(Number(l.quantity) > 0))) blockers.push("Every line needs a quantity.");
-  if (short.length) blockers.push(`Not enough stock: ${short.map((l) => `${prodMap.get(l.product_id)?.name} (have ${formatQuantity(stock[l.product_id] ?? 0)})`).join(", ")}.`);
+  if (shortProducts.length) blockers.push(`Not enough stock: ${shortProducts.map((pid) => `${prodMap.get(pid)?.name} (need ${formatQuantity(qtyByProduct.get(pid) ?? 0)}, have ${formatQuantity(stock[pid] ?? 0)})`).join(", ")}.`);
   if (!walkIn && !customerId) blockers.push("Choose the customer.");
   if (balance < -0.001) blockers.push(`Paid ${formatMoney(-balance)} more than the total.`);
   if (walkIn && validLines.length > 0 && Math.abs(balance) > 0.001 && balance > 0) blockers.push("Walk-in must be fully paid. Allocate payment across methods to balance.");
