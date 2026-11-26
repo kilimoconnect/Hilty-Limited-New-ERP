@@ -53,11 +53,13 @@ function Clock() {
  * can be posted; for a walk-in that means paid = total.
  */
 export function SaleForm({
-  branchId, branchLabel, canChangeBranch = false, products, taxCodes, accounts, customers, stock, wac, canViewCost, walkInId, initial,
+  branchId, branchLabel, canChangeBranch = false, products, taxCodes, accounts, customers, stock, wac, canViewCost, walkInId, initial, correctionOf = null,
 }: {
   branchId: string; branchLabel: string; canChangeBranch?: boolean; products: ProductOpt[]; taxCodes: TaxOpt[]; accounts: AccountOpt[];
   customers: CustomerOpt[]; stock: Record<string, number>; wac: Record<string, number>; canViewCost: boolean; walkInId: string | null;
   initial?: SaleInitial;
+  /** Edit posted sale: the number of the sale this draft replaces when posted. */
+  correctionOf?: string | null;
 }) {
   const router = useRouter();
   const editing = !!initial;
@@ -150,14 +152,14 @@ export function SaleForm({
 
   const postButton = (
     <Button onClick={() => submit(true)} disabled={pending || !canPost} className="disabled:opacity-40"
-      title={canPost ? undefined : blockers[0]}>{pending ? "Working..." : "Post (Save)"}</Button>
+      title={canPost ? undefined : blockers[0]}>{pending ? "Working..." : correctionOf ? "Post correction" : "Post (Save)"}</Button>
   );
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          {editing && <p className="text-sm font-semibold text-primary">Editing draft</p>}
+          {editing && <p className="text-sm font-semibold text-primary">{correctionOf ? `Correcting ${correctionOf}` : "Editing draft"}</p>}
           <p className="text-sm text-muted-foreground"><ChosenBranch branch={{ code: branchLabel.split(" — ")[0] ?? "", name: branchLabel.split(" — ")[1] ?? "" }} canChange={canChangeBranch && !editing} /> · <Clock /></p>
           <div className="flex items-end gap-3">
             <div className="space-y-1.5"><Label htmlFor="sale-date">Date</Label>

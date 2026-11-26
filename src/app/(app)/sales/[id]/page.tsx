@@ -49,7 +49,13 @@ export default async function SaleDetailPage(props: { params: Params; searchPara
     subtotal: number; amount_paid: number; outstanding: number; cogs_total: number; void_reason: string | null;
     customer_id: string; customer: { code: string; name: string; phone: string | null; address: string | null; tin: string | null } | null;
     branch: { name: string; code: string } | null;
+    amends_sale_id: string | null; replaced_by_sale_id: string | null;
   };
+  // Edit posted sale: the sale this draft corrects, or the corrected sale that replaced this one.
+  const linkedId = s.amends_sale_id ?? s.replaced_by_sale_id;
+  const { data: linked } = linkedId
+    ? await admin.from("sales").select("id, document_number, document_status").eq("id", linkedId).maybeSingle()
+    : { data: null };
   const ll = (lines ?? []) as unknown as Array<{
     id: string; product_id: string | null; description: string; quantity: number; unit_price: number; discount: number;
     tax_name: string | null; tax_rate: number; net_amount: number; tax_amount: number; line_total: number;
@@ -67,9 +73,25 @@ export default async function SaleDetailPage(props: { params: Params; searchPara
           <SaleActions id={id} status={s.document_status} outstanding={Number(s.outstanding)} customerId={s.customer_id}
             canPost={can(ctx.user, "sales.post")} canEdit={can(ctx.user, "sales.edit_draft")} canVoid={can(ctx.user, "transactions.void")}
             canDelete={can(ctx.user, "transactions.delete_draft")} canReceive={can(ctx.user, "sales.receive_payment")}
-            canReturn={can(ctx.user, "sales.create_return")} />
+            canReturn={can(ctx.user, "sales.create_return")}
+            canEditPosted={ctx.user.isOwner} isCorrection={!!s.amends_sale_id && s.document_status === "draft"} />
         }
       />
+
+      {s.amends_sale_id && s.document_status === "draft" && linked && (
+        <div className="mb-4 rounded-md border border-primary/40 bg-primary/5 px-4 py-3 text-sm">
+          <p className="font-medium">Correction of sale <Link href={`/sales/${linked.id}`} className="underline">{linked.document_number}</Link></p>
+          <p className="text-muted-foreground">Edit this draft, then post it. Posting reverses {linked.document_number} (stock and accounts) and this sale takes its number. Deleting this draft leaves {linked.document_number} as it is.</p>
+        </div>
+      )}
+      {s.replaced_by_sale_id && linked && (
+        <div className="mb-4 rounded-md border border-border bg-muted px-4 py-3 text-sm">
+          Replaced by the corrected sale <Link href={`/sales/${linked.id}`} className="font-medium text-primary underline">{linked.document_number}</Link>. This version was reversed and is kept for the record.
+        </div>
+      )}
+      {s.amends_sale_id && s.document_status === "posted" && linked && (
+        <p className="mb-4 text-sm text-muted-foreground">Corrected version of the sale; the earlier version is kept as <Link href={`/sales/${linked.id}`} className="underline">{linked.document_number}</Link>.</p>
+      )}
 
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card><CardContent className="space-y-1 p-5 text-sm">

@@ -186,6 +186,63 @@ export async function saveSaleDraft(input: SaleDraftInput): Promise<RpcResult> {
   }
 }
 
+/**
+ * Edit posted sale (Owner only): opens a correction draft, a copy of the posted
+ * sale that points at it. The original stays posted while the copy is edited
+ * (deleting the copy changes nothing). Posting the copy reverses the original
+ * and takes over its invoice number (see migration 0048). If a correction is
+ * already open for this sale, that one is returned.
+ */
+export async function createSaleCorrection(saleId: string): Promise<RpcResult> {
+  try {
+    const user = await assertActiveUser();
+    if (!user.isOwner) return { ok: false, error: "Only the Owner can edit a posted sale." };
+    const ctx = await getActiveContext();
+    const admin = createAdminClient();
+    const { data: sale } = await admin.from("sales").select("*").eq("id", saleId).maybeSingle();
+    if (!sale || sale.company_id !== ctx.companyId) return { ok: false, error: "Sale not found." };
+    if (sale.document_status !== "posted") return { ok: false, error: "Only a posted sale can be edited this way." };
+
+    const { data: open } = await admin.from("sales").select("id").eq("amends_sale_id", saleId).eq("document_status", "draft").maybeSingle();
+    if (open) return { ok: true, id: open.id };
+
+    // Same rule as Void: nothing may depend on the sale.
+    const { data: receipts } = await admin.from("customer_receipt_allocations")
+      .select("receipt:customer_receipts!inner(document_number, document_status)").eq("sale_id", saleId).eq("receipt.document_status", "posted").limit(1);
+    if (receipts?.length) return { ok: false, error: "This sale has customer payments received after the sale. Void those first, then edit the sale." };
+    const { data: returns } = await admin.from("sales_returns").select("id").eq("sale_id", saleId).eq("document_status", "posted").limit(1);
+    if (returns?.length) return { ok: false, error: "This sale has returns. Void those first, then edit the sale." };
+
+    const [{ data: lines }, { data: pays }] = await Promise.all([
+      admin.from("sale_lines").select("product_id, quantity, unit_price, discount, tax_code_id").eq("sale_id", saleId).order("line_no"),
+      admin.from("sale_payments").select("payment_account_id, amount, reference, payment_date").eq("sale_id", saleId),
+    ]);
+    const res = await saveSaleDraft({
+      branchId: sale.branch_id, documentDate: sale.document_date, dueDate: sale.due_date,
+      customerId: sale.customer_id, customerReference: sale.customer_reference ?? "", salespersonId: sale.salesperson_id,
+      notes: sale.notes ?? "",
+      lines: (lines ?? []).filter((l) => l.product_id).map((l) => ({
+        product_id: l.product_id as string, quantity: Number(l.quantity), unit_price: Number(l.unit_price), discount: Number(l.discount ?? 0), tax_code_id: l.tax_code_id,
+      })),
+      payments: (pays ?? []).map((p) => ({ payment_account_id: p.payment_account_id, amount: Number(p.amount), reference: p.reference ?? undefined, payment_date: p.payment_date ?? undefined })),
+    });
+    if (!res.ok || !res.id) return res;
+    const { error } = await admin.from("sales").update({ amends_sale_id: saleId }).eq("id", res.id);
+    if (error) {
+      await admin.from("sales").delete().eq("id", res.id);
+      return { ok: false, error: /sales_one_open_amendment/.test(error.message) ? "A correction of this sale is already open." : error.message };
+    }
+    await writeAuditLog({
+      userId: user.id, companyId: ctx.companyId, branchId: sale.branch_id, action: "sale.correction_open",
+      resourceType: "sale", resourceId: saleId, newValues: { correction_id: res.id, number: sale.document_number },
+    });
+    revalidatePath(`/sales/${saleId}`);
+    return { ok: true, id: res.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
 export async function postSale(saleId: string): Promise<RpcResult> {
   try {
     const user = await assertActiveUser();
@@ -197,6 +254,8 @@ export async function postSale(saleId: string): Promise<RpcResult> {
     if (!sale || sale.company_id !== ctx.companyId) return { ok: false, error: "Sale not found." };
     if (sale.document_status !== "draft") return { ok: false, error: "Sale is not a draft." };
     assertBranchAccess(user, sale.branch_id);
+    // A correction of a posted sale replaces it on posting (the database checks this too).
+    if (sale.amends_sale_id && !user.isOwner) return { ok: false, error: "Only the Owner can post a correction of a posted sale." };
 
     // Walk-in credit block
     if (sale.outstanding > 0) {
@@ -237,6 +296,11 @@ export async function postSale(saleId: string): Promise<RpcResult> {
     const res = await callPostingRpc("post_sale", { p_id: saleId, p_user: user.id, p_idem: randomUUID() });
     if (res.ok) {
       await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: sale.branch_id, action: "sale.post", resourceType: "sale", resourceId: saleId });
+      if (sale.amends_sale_id) {
+        await writeAuditLog({ userId: user.id, companyId: ctx.companyId, branchId: sale.branch_id, action: "sale.corrected", resourceType: "sale",
+          resourceId: sale.amends_sale_id, newValues: { replaced_by: saleId } });
+        revalidatePath(`/sales/${sale.amends_sale_id}`);
+      }
       revalidatePath("/sales/history"); revalidatePath(`/sales/${saleId}`); revalidatePath("/inventory"); revalidatePath("/dashboard");
     }
     return res;
